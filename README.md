@@ -18,3 +18,11 @@ bedtools getfasta -fi hs37d5.fa -bed brca_exons.bed -fo brca_exons.fa -name
 Запускаем Temperature filtered и извлекаем все зонды с температурой плавления 65-72 градуса
 Запускаем Repetions filtered и находим все зонды без длинных тандемных и низкосложных повторов.
 Запускаем Structure filtered и убираем зонды со сложными вторичными структурами
+Выравниваем зонды на геном
+bwa mem hs37d5.fa probes_final.fa > probes_aligned.sam
+Преобразкем sam в bam и сортируем
+samtools view -Sb probes_aligned.sam > probes_aligned.bam
+samtools sort probes_aligned.bam -o probes_aligned.sorted.bam
+samtools index probes_aligned.sorted.bam
+Проверяем специфичность(один зонд-один экзон)
+samtools view probes_aligned.sorted.bam | cut -f1 | sort | uniq -c | awk '$1 == 1'
