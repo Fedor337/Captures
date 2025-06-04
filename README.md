@@ -26,3 +26,5 @@ samtools sort probes_aligned.bam -o probes_aligned.sorted.bam
 samtools index probes_aligned.sorted.bam
 Проверяем специфичность(один зонд-один экзон)
 samtools view probes_aligned.sorted.bam | cut -f1 | sort | uniq -c | awk '$1 == 1'
+
+допишу лишнюю строку, чтобы проверить, могу ли я делать коммиты
