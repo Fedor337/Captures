@@ -1,3 +1,8 @@
+## System Requirements
+
+- Python ≥ 3.8
+- bedtools ≥ 2.30 (installed via apt, brew, or conda)
+
 Скачиваем нотацию генома
 wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_19/gencode.v19.annotation.gtf.gz
 gunzip gencode.v19.annotation.gtf.gz

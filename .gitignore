@@ -1,0 +1,39 @@
+# 🧬 Данные
+data/
+*.fa
+*.fa.gz
+*.gtf
+*.gtf.gz
+*.bed
+
+# 🧪 Временные тестовые файлы
+*.tmp
+*.log
+*.test.*
+robots.txt
+
+# 🧠 Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+.env
+.venv
+*.sqlite
+
+# 🛠 IDE / редакторы
+.vscode/
+.idea/
+
+# 📦 Установочные файлы
+dist/
+build/
+
+# 🔧 CI/pytest
+.coverage
+htmlcov/
+.tox/
+.cache/
+pytest_cache/
