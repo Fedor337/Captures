@@ -1,7 +1,43 @@
-## System Requirements
+# BRCA1/2 Probe Design Pipeline
+
+This repository contains a Python-based pipeline for designing oligonucleotide probes targeting the BRCA1 and BRCA2 genes in the human genome (reference: hs37d5). The pipeline includes downloading genome data, extracting exon coordinates, generating overlapping probes, and filtering them by GC content and melting temperature.
+
+---
+
+## 🧬 Features
+
+- Automatic download and decompression of the genome and annotation
+- Extraction of BRCA1/2 exon coordinates from GTF
+- Conversion to BED format
+- FASTA extraction via `bedtools`
+- Modular structure for future probe filtering and alignment
+
+---
+
+## 📦 Requirements
+
+### 🔹 System Requirements
 
 - Python ≥ 3.8
-- bedtools ≥ 2.30 (installed via apt, brew, or conda)
+- [`bedtools`](https://bedtools.readthedocs.io/) ≥ 2.30
+
+> Install bedtools with one of the following:
+>
+> ```bash
+> sudo apt install bedtools        # Debian/Ubuntu
+> brew install bedtools            # macOS
+> conda install -c bioconda bedtools
+> ```
+
+---
+
+### 🔹 Python Packages
+
+Install using pip:
+
+```bash
+pip install -r requirements.txt
+
 
 Скачиваем нотацию генома
 wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_19/gencode.v19.annotation.gtf.gz
