@@ -1,6 +1,7 @@
 from Bio import SeqIO
 from Bio.SeqUtils import MeltingTemp as mt
 from Bio.SeqRecord import SeqRecord
+from Bio.SeqUtils.lc_pattern import low_complexity_regions
 from pathlib import Path
 from typing import List
 import re
@@ -26,7 +27,12 @@ class ProbeFilterPipeline:
                  tm_max: float = 72.0,
                  allow_repeats: bool = False,
                  structure_filter: bool = False,
-                 dg_threshold: float = -9.0):
+                 dg_threshold: float = -9.0,
+                 homopolymer_threshold: int = 5,
+                 tandem_min_repeats: int = 3,
+                 enable_palindromes: bool = True,
+                 enable_low_complexity: bool = True,
+                 palindrome_min_length: int = 6):
         self.input_fasta = Path(input_fasta)
         self.output_fasta = Path(output_fasta)
         self.gc_min = gc_min
@@ -36,6 +42,12 @@ class ProbeFilterPipeline:
         self.allow_repeats = allow_repeats
         self.structure_filter = structure_filter
         self.dg_threshold = dg_threshold
+
+        self.homopolymer_threshold = homopolymer_threshold
+        self.tandem_min_repeats = tandem_min_repeats
+        self.enable_palindromes = enable_palindromes
+        self.enable_low_complexity = enable_low_complexity
+        self.palindrome_min_length = palindrome_min_length
 
     def filter_by_gc(self, probes: List[SeqRecord]) -> List[SeqRecord]:
         """
@@ -60,17 +72,41 @@ class ProbeFilterPipeline:
     def filter_by_repeats(self, probes: List[SeqRecord]) -> List[SeqRecord]:
         """
         Remove probes with:
-        - homopolymers (≥6 nt)
-        - dinucleotide repeats (e.g., ATATAT ≥ 3x)
-        - trinucleotide repeats (e.g., GCGGCGGCG ≥ 3x)
+        - homopolymers (e.g., AAAAAA)
+        - tandem repeats (e.g., ATATAT or GCGGCGGCG)
+        - palindromes (e.g., GAATTC)
+        - low-complexity regions (via Biopython)
         """
-        def has_repeats(seq: str) -> bool:
-            return (
-                re.search(r"(A{6,}|T{6,}|G{6,}|C{6,})", seq) or
-                re.search(r"((..))\1{2,}", seq) or
-                re.search(r"((...))\1{2,}", seq)
-            )
-        return [r for r in probes if not has_repeats(str(r.seq))]
+        return [r for r in probes if not self._has_repeats(r.seq)]
+
+    def _has_repeats(self, seq: Seq) -> bool:
+        s = str(seq).upper()
+
+        # Homopolymers (e.g., AAAAA)
+        homopolymer_re = (r"(A{{{0},}}|T{{{0},}}|G{{{0},}}|C{{{0},}})").format(self.homopolymer_threshold)
+        if re.search(homopolymer_re, s):
+            return True
+
+        # Tandem repeats (e.g., ATATAT or GCGGCGGCG)
+        for size in range(2, 6):
+            pattern = re.compile(rf"((\w{{{size}}}))\2{{{self.tandem_min_repeats - 1},}}")
+            if pattern.search(s):
+                return True
+
+        # Palindromes
+        if self.enable_palindromes:
+            for i in range(len(seq) - self.palindrome_min_length + 1):  # minimal palindrome length = 6
+                for l in range(self.palindrome_min_length, len(seq) - i + 1):
+                    fragment = seq[i:i + l]
+                    if fragment == fragment.reverse_complement():
+                        return True
+
+        # Low complexity (via Biopython DUST-like filter)
+        if self.enable_low_complexity:
+            if low_complexity_regions(seq):
+                return True
+
+        return False
 
     def filter_by_structure(self, probes: List[SeqRecord]) -> List[SeqRecord]:
         """
@@ -115,11 +151,11 @@ class ProbeFilterPipeline:
 
         if not self.allow_repeats:
             probes = self.filter_by_repeats(probes)
-            print(f"[✓] After repeat filter: {len(probes)} probes remain")
+            print(f"[OK] After repeat filter: {len(probes)} probes remain")
 
         if self.structure_filter:
             probes = self.filter_by_structure(probes)
-            print(f"[✓] After structure filter: {len(probes)} probes remain")
+            print(f"[OK] After structure filter: {len(probes)} probes remain")
 
         SeqIO.write(probes, self.output_fasta, "fasta")
         print(f"[OK] Filtered probes saved to {self.output_fasta}")
