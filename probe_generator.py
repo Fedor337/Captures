@@ -7,6 +7,18 @@ from typing import List
 
 
 class ProbeGenerator:
+    """
+    Generates overlapping oligonucleotide probes from exon sequences.
+
+    Each probe is of fixed length (default: 120 nt) and moves along the exon
+    with a maximum step (default: 60 nt), ensuring ≥50% overlap.
+
+    Attributes:
+        input_fasta (Path): Input FASTA file with exon sequences
+        output_fasta (Path): Output FASTA file for generated probes
+        probe_length (int): Length of each probe
+        max_step (int): Maximum step between probes (controls overlap)
+    """
     def __init__(self,
                  input_fasta: str | Path = "data/brca_exons.fa",
                  output_fasta: str | Path = "data/brca_probes.fa",
@@ -18,6 +30,16 @@ class ProbeGenerator:
         self.max_step = max_step
 
     def make_probes(self, exon_seq: str, exon_id: str) -> List[SeqRecord]:
+        """
+        Generate overlapping probes from a single exon sequence.
+
+        Args:
+            exon_seq (str): Nucleotide sequence of the exon
+            exon_id (str): Identifier used in probe names
+
+        Returns:
+            List[SeqRecord]: List of generated probes as SeqRecord objects
+        """
         probes = []
         exon_len = len(exon_seq)
 
@@ -43,6 +65,11 @@ class ProbeGenerator:
         return probes
 
     def generate_all(self) -> None:
+        """
+        Parse the input FASTA file and generate probes for each exon.
+
+        The resulting probes are written to the output FASTA file.
+        """
         all_probes = []
 
         for record in SeqIO.parse(self.input_fasta, "fasta"):
