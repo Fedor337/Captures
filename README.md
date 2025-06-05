@@ -1,6 +1,12 @@
 # BRCA1/2 Probe Design Pipeline
 
-This repository contains a Python-based pipeline for designing oligonucleotide probes targeting the BRCA1 and BRCA2 genes in the human genome (reference: hs37d5). The pipeline includes downloading genome data, extracting exon coordinates, generating overlapping probes, and filtering them by GC content and melting temperature.
+This repository contains a Python-based pipeline for designing oligonucleotide probes targeting the BRCA1 and BRCA2 genes in the human genome (reference: hs37d5). The pipeline automates:
+- downloading and preprocessing genome and annotation files,
+- extracting exon coordinates,
+- generating overlapping probes,
+- and filtering probes by GC content, melting temperature (Tm), repeats, and predicted secondary structure (ΔG).
+
+The resulting probe set is suitable for hybridization-based target enrichment in NGS experiments.
 
 ---
 
@@ -10,6 +16,11 @@ This repository contains a Python-based pipeline for designing oligonucleotide p
 - Extraction of BRCA1/2 exon coordinates into BED format
 - Sequence retrieval using `bedtools getfasta`
 - Generation of overlapping probes (default: 120 nt, step ≤ 60 nt)
+- Filtering by:
+  - GC content (e.g., 40–60%)
+  - Melting temperature (Tm)
+  - Repeats (homopolymers, di-/tri-nucleotide patterns)
+  - Predicted secondary structure (ΔG via RNAfold)
 - Executable via Python script (`main.py`) with command-line arguments
 - Tested and modular structure for future extension (filtering, alignment)
 
@@ -19,15 +30,22 @@ This repository contains a Python-based pipeline for designing oligonucleotide p
 
 ### 🔹 System Requirements
 - Python ≥ 3.8
-- [`bedtools`](https://bedtools.readthedocs.io/) ≥ 2.30
+- [`bedtools`](https://bedtools.readthedocs.io/) ≥ 2.30 — for FASTA extraction
+- [`RNAfold`](https://www.tbi.univie.ac.at/RNA/) — optional, used for secondary structure filtering (--structure-filter)
 
-> Install bedtools with one of the following:
->
+> Install bedtools:
 > ```bash
 > sudo apt install bedtools        # Debian/Ubuntu
 > brew install bedtools            # macOS
 > conda install -c bioconda bedtools
 > ```
+
+> Install RNAfold (ViennaRNA):
+> ```bash
+> sudo apt install vienna-rna      # Debian/Ubuntu
+> brew install viennarna           # macOS
+> conda install -c bioconda viennarna
+> ````
 
 ### 🔹 Python Packages
 Install using pip:
@@ -55,8 +73,16 @@ python main.py
 - `--probe-length N` – set probe length (default: 120)
 - `--max-step N` – set max step between probes (default: 60)
 
+#### Filtering options:
+- `--gc-min` <float> – minimum GC content (%), default: 40.0
+- `--gc-max` <float> – maximum GC content (%), default: 60.0
+- `--tm-min` <float> – minimum Tm (°C), default: 65.0
+- `--tm-max` <float> – maximum Tm (°C), default: 72.0
+- `--no-repeats` – exclude probes with homopolymers or repeat patterns
+- `--structure-filter` – enable RNAfold-based secondary structure filtering
+- `--dg-threshold` <float> – minimum acceptable ΔG (kcal/mol), default: -9.0
 
-### Example Invocations
+### 🧪 Example Invocations
 
 ```bash
 # 🚀 Run the full pipeline with defaults (download, extract, generate probes)
@@ -65,36 +91,53 @@ python main.py
 # 🔄 Redownload genome/annotation and regenerate exon/probe data
 python main.py --force-download --force-prep
 
-# 🔬 Change probe length and step size
-python main.py --probe-length 100 --max-step 50 \
-               --output-fasta data/probes_len100_step50.fa
+# 🧬 Use custom probe size and step
+python main.py --probe-length 100 --max-step 40
+
+# ⚠️ Test edge case: very sparse probes (no overlap)
+python main.py --probe-length 200 --max-step 200
 
 # 📁 Output to a different folder
 python main.py --output-fasta results/probes_v1.fa
+
+# 💾 Save to timestamped file (e.g., CI/CD or versioning)
+python main.py --output-fasta results/probes_$(date +%Y%m%d).fa
 
 # 🧬 Use a custom exon FASTA file (skip exon extraction)
 python main.py --input-fasta data/my_exons.fa \
                --output-fasta results/my_probes.fa
 
-# ⚠️ Test edge case: very sparse probes (no overlap)
-python main.py --probe-length 200 --max-step 200
+# 🛠 Run probe generation only (assumes reference data exists)
+python main.py --force-prep
 
-# 🧪 Use in integration tests / pipelines
+# 🧪 Use in integration tests or CI pipelines
 python main.py --input-fasta data/exons_test.fa \
                --output-fasta data/probes_test.fa
 
-# 🛠 Run probe generation only, skip all downloads (assumes data exists)
-python main.py --force-prep
-
-# 🐍 Chain with additional filters (future): generate probes, pass to next step
+# 🐍 Chain with external filters (example for future use)
 python main.py --output-fasta tmp/probes_unfiltered.fa && \
 python filter_gc.py --input tmp/probes_unfiltered.fa --output probes_gc_filtered.fa
 
-# 👩‍🔬 Quick check with shorter probes (e.g., for tiling microarray simulation)
+# 🌡 Filter by melting temperature only
+python main.py --tm-min 64 --tm-max 70
+
+# 🚫 Remove probes with repeats
+python main.py --no-repeats
+
+# 💧 Filter by GC and secondary structure (ΔG ≥ -8.0 kcal/mol)
+python main.py --gc-min 42 --gc-max 58 --structure-filter --dg-threshold -8.0
+
+# 👩‍🔬 Quick check with shorter probes (e.g., for microarray simulation)
 python main.py --probe-length 80 --max-step 40
 
-# 💾 Save to timestamped file (e.g., CI/CD or versioning)
-python main.py --output-fasta results/probes_$(date +%Y%m%d).fa
+# 🔬 Full filtering: GC, Tm, repeats, structure
+python main.py \\
+  --force-download --force-prep \\
+  --probe-length 120 --max-step 60 \\
+  --gc-min 40 --gc-max 60 \\
+  --tm-min 65 --tm-max 72 \\
+  --no-repeats --structure-filter --dg-threshold -9.0
+
 ```
 
 ---
@@ -107,7 +150,7 @@ Run all tests using `pytest`:
 pytest
 ```
 
-> Some tests are skipped automatically if `bedtools` is not installed.
+> Some tests are skipped automatically if `bedtools` or `RNAfold` is not installed.
 
 ---
 
@@ -116,19 +159,71 @@ pytest
 ```python
 from reference_preparer import ReferencePreparer
 from probe_generator import ProbeGenerator
+from probe_filter_pipeline import ProbeFilterPipeline
 ```
 
-### Step 1: Prepare reference data
+### 📥 Step 1: Prepare reference data
 ```python
-rp = ReferencePreparer()
-rp.prepare_all()  # Download, extract, process
+rp = ReferencePreparer(
+    genome_url="ftp://...",                          # Optional: override default URLs
+    annotation_url="ftp://...",
+    output_dir="data"                                # Default: "data"
+)
+rp.prepare_all(force_download=True, force_preparing=True)  # Download, extract, process. Both arguments are False by default
 ```
 
-### Step 2: Generate probes from BRCA1/2 exons
+### 🧬 Step 2: Generate overlapping probes from BRCA1/2 exons
 ```python
-pg = ProbeGenerator()
+pg = ProbeGenerator(
+    input_fasta="data/brca_exons.fa",
+    output_fasta="data/brca_probes.raw.fa",
+    probe_length=120,
+    max_step=60
+)
 pg.generate_all()  # Create overlapping probes from exon sequences
 ```
+
+### 🧹 Step 3: Apply filters to probes
+Each filtering step is available as a separate method and returns a filtered list of SeqRecord objects:
+```python
+pf = ProbeFilterPipeline(
+    input_fasta="data/brca_probes.raw.fa",
+    output_fasta="data/brca_probes.filtered.fa",
+    gc_min=40,
+    gc_max=60,
+    tm_min=65,
+    tm_max=72,
+    allow_repeats=False,
+    structure_filter=True,
+    dg_threshold=-9.0
+)
+pf.apply_all()
+```
+
+### 🛠 Optional: Use filters independently
+```python
+from Bio import SeqIO
+
+probes = list(SeqIO.parse("data/brca_probes.raw.fa", "fasta"))
+
+filtered_gc = pf.filter_by_gc(probes)
+filtered_tm = pf.filter_by_tm(filtered_gc)
+filtered_final = pf.filter_by_repeats(filtered_tm)
+# Optional: structure filtering (requires RNAfold)
+filtered_final = pf.filter_by_structure(filtered_final)
+
+SeqIO.write(filtered_final, "data/brca_probes.manual.fa", "fasta")
+```
+This is useful if you want to inspect intermediate results or apply filters interactively in notebooks.
+
+### 🧾 Available Filters
+
+| Method                      | Description                                                                 |
+|-----------------------------|-----------------------------------------------------------------------------|
+| `filter_by_gc(probes)`      | Keep probes with GC content within `gc_min`–`gc_max` (%)                   |
+| `filter_by_tm(probes)`      | Keep probes with melting temperature within `tm_min`–`tm_max` (°C)         |
+| `filter_by_repeats(probes)` | Remove probes with homopolymers and repeat motifs (e.g. ATATAT, GCGCGC)    |
+| `filter_by_structure(probes)` | Remove probes with strong secondary structure (ΔG < `dg_threshold`, via RNAfold) |
 
 ---
 
@@ -136,29 +231,36 @@ pg.generate_all()  # Create overlapping probes from exon sequences
 
 ```
 .
-├── data/                     # All generated data and intermediate files
-│   ├── hs37d5.fa             # Reference genome (unzipped)
-│   ├── gencode.v19.annotation.gtf  # Gene annotations (unzipped)
-│   ├── brca_exons.bed        # BRCA1/2 exon coordinates
-│   ├── brca_exons.fa         # Extracted exon sequences
-│   ├── brca_probes.fa        # Designed overlapping probes
-│   └── ...                   # Future: filtered sets, alignment output
-├── reference_preparer.py     # Main class for downloading and preprocessing
-├── probe_generator.py        # Class for generating overlapping probes
+├── data/                         # All intermediate and output files
+│   ├── hs37d5.fa                 # Reference genome (unzipped)
+│   ├── gencode.v19.annotation.gtf  # Gene annotation (unzipped)
+│   ├── brca_exons.bed            # BRCA1/2 exon coordinates
+│   ├── brca_exons.fa             # Extracted exon sequences
+│   ├── brca_probes.raw.fa        # Raw unfiltered probes
+│   ├── brca_probes.fa            # Final filtered probes
+│   └── ...                       # Future: alignments, reports
+├── reference_preparer.py         # Class for downloading and preprocessing reference data
+├── probe_generator.py            # Class for generating overlapping probes
+├── probe_filter_pipeline.py      # Class for filtering probes (GC, Tm, repeats, ΔG)
+├── main.py                       # Command-line entry point
+├── requirements.txt
+├── .gitignore
 ├── test_reference_preparer.py
 ├── test_probe_generator.py
-├── main.py
-├── requirements.txt
-└── .gitignore
+├── test_probe_filter_pipeline.py
+├── test_structure_filter.py
 ```
 
 ---
 
 ## 📌 To Do
 
-- Add GC/Tm/repeats/structure filtering
-- Add genome alignment step (BLAST or BWA)
-- Add CLI or Jupyter runner
+- Add summary report (number of probes filtered at each step)
+- Add support for multi-threaded structure filtering
+- Add BLAST/BWA alignment step for specificity checking
+- Visualize probe tiling across exons
+- Add CLI output in JSON or TSV (optional metadata per probe)
+- Add Jupyter Notebook wrapper for exploratory use
 
 ---
 
@@ -168,7 +270,7 @@ MIT License. See `LICENSE` file.
 
 ---
 
-## ⚖️ Bash Shell Wrapper
+## ⚖️ Bash Shell Wrapper (Optional)
 
 For convenience, you may use a simple shell script:
 
@@ -177,9 +279,12 @@ For convenience, you may use a simple shell script:
 
 # Run full pipeline with default parameters
 echo "[INFO] Starting BRCA1/2 pipeline"
-python main.py --force-download --force-prep \
-               --probe-length 120 --max-step 60 \
-               --output-fasta data/brca_probes.fa
+python main.py \\
+    --force-download --force-prep \\
+    --probe-length 120 --max-step 60 \\
+    --gc-min 40 --gc-max 60 \\
+    --tm-min 65 --tm-max 72 \\
+    --no-repeats --structure-filter --dg-threshold -9.0
 ```
 
 Save this to `run_pipeline.sh`, then run:
