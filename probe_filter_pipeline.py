@@ -1,5 +1,4 @@
 from Bio import SeqIO
-from Bio.SeqUtils import GC
 from Bio.SeqUtils import MeltingTemp as mt
 from Bio.SeqRecord import SeqRecord
 from pathlib import Path
@@ -42,13 +41,21 @@ class ProbeFilterPipeline:
         """
         Retain probes with GC content within the specified range.
         """
-        return [r for r in probes if self.gc_min <= GC(r.seq) <= self.gc_max]
+        filtered = []
+
+        for record in probes:
+            seq = record.seq.upper()
+            gc = 100 * (seq.count("G") + seq.count("C")) / len(seq)
+            if self.gc_min <= gc <= self.gc_max:
+                filtered.append(record)
+
+        return filtered
 
     def filter_by_tm(self, probes: List[SeqRecord]) -> List[SeqRecord]:
         """
         Retain probes with melting temperature (Tm) within the specified range.
         """
-        return [r for r in probes if self.tm_min <= mt.Tm_NN(str(r.seq)) <= self.tm_max]
+        return [r for r in probes if self.tm_min <= mt.Tm_NN(r.seq) <= self.tm_max]
 
     def filter_by_repeats(self, probes: List[SeqRecord]) -> List[SeqRecord]:
         """
