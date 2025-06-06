@@ -19,10 +19,10 @@ The resulting probe set is suitable for hybridization-based target enrichment in
 - Filtering by:
   - GC content (e.g., 40–60%)
   - Melting temperature (Tm)
-  - Repeats (homopolymers, di-/tri-nucleotide patterns)
+  - Repeats (homopolymers, di-/tri-nucleotide patterns, palindromes)
   - Predicted secondary structure (ΔG via RNAfold)
 - Executable via Python script (`main.py`) with command-line arguments
-- Tested and modular structure for future extension (filtering, alignment)
+- Tested and modular structure for future extension (alignment, reporting)
 
 ---
 
@@ -82,6 +82,13 @@ python main.py
 - `--structure-filter` – enable RNAfold-based secondary structure filtering
 - `--dg-threshold` <float> – minimum acceptable ΔG (kcal/mol), default: -9.0
 
+#### Repeat filter parameters:
+- `--homopolymer-threshold <int>` – min. length of homopolymers (default: 6)
+- `--tandem-min-repeats <int>` – min. number of motif repeats (default: 3)
+- `--disable-palindromes` – disable filtering of palindromic sequences
+- `--disable-low-complexity` – disable low-complexity region filtering
+- `--palindrome-min-length <int>` – min. length for palindromes (default: 6)
+
 ### 🧪 Example Invocations
 
 ```bash
@@ -124,6 +131,12 @@ python main.py --tm-min 64 --tm-max 70
 # 🚫 Remove probes with repeats
 python main.py --no-repeats
 
+# 🧱 Set repeat thresholds explicitly
+python main.py --homopolymer-threshold 5 --tandem-min-repeats 4
+
+# 🚫 Disable specific repeat filters
+python main.py --disable-palindromes --disable-low-complexity
+
 # 💧 Filter by GC and secondary structure (ΔG ≥ -8.0 kcal/mol)
 python main.py --gc-min 42 --gc-max 58 --structure-filter --dg-threshold -8.0
 
@@ -137,6 +150,9 @@ python main.py \\
   --gc-min 40 --gc-max 60 \\
   --tm-min 65 --tm-max 72 \\
   --no-repeats --structure-filter --dg-threshold -9.0
+  --homopolymer-threshold 6 --tandem-min-repeats 3 \
+  --disable-palindromes --disable-low-complexity \
+  --palindrome-min-length 6
 
 ```
 
@@ -196,6 +212,11 @@ pf = ProbeFilterPipeline(
     allow_repeats=False,
     structure_filter=True,
     dg_threshold=-9.0
+    homopolymer_threshold=6,
+    tandem_min_repeats=3,
+    enable_palindromes=False,
+    enable_low_complexity=False,
+    palindrome_min_length=6
 )
 pf.apply_all()
 ```
@@ -210,7 +231,7 @@ filtered_gc = pf.filter_by_gc(probes)
 filtered_tm = pf.filter_by_tm(filtered_gc)
 filtered_final = pf.filter_by_repeats(filtered_tm)
 # Optional: structure filtering (requires RNAfold)
-filtered_final = pf.filter_by_structure(filtered_final)
+filtered_final = pf.filter_by_structure(filtered_rep)
 
 SeqIO.write(filtered_final, "data/brca_probes.manual.fa", "fasta")
 ```
@@ -222,7 +243,7 @@ This is useful if you want to inspect intermediate results or apply filters inte
 |-----------------------------|-----------------------------------------------------------------------------|
 | `filter_by_gc(probes)`      | Keep probes with GC content within `gc_min`–`gc_max` (%)                   |
 | `filter_by_tm(probes)`      | Keep probes with melting temperature within `tm_min`–`tm_max` (°C)         |
-| `filter_by_repeats(probes)` | Remove probes with homopolymers and repeat motifs (e.g. ATATAT, GCGCGC)    |
+| `filter_by_repeats(probes)` | Remove probes with homopolymers, tandem repeats, palindromes, low-complexity |
 | `filter_by_structure(probes)` | Remove probes with strong secondary structure (ΔG < `dg_threshold`, via RNAfold) |
 
 ---
@@ -285,6 +306,9 @@ python main.py \\
     --gc-min 40 --gc-max 60 \\
     --tm-min 65 --tm-max 72 \\
     --no-repeats --structure-filter --dg-threshold -9.0
+  --homopolymer-threshold 6 --tandem-min-repeats 3 \
+  --disable-palindromes --disable-low-complexity \
+  --palindrome-min-length 6
 ```
 
 Save this to `run_pipeline.sh`, then run:
