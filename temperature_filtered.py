@@ -1,27 +1,37 @@
+import argparse
 from Bio import SeqIO
 from Bio.SeqUtils import MeltingTemp as mt
+import sys
 
-# Входной и выходной файлы
-gc_filtered_input = "probes_gc_filtered.fa"
-tm_filtered_output = "probes_gc__tm_filtered.fa"
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Фильтрация зондов по температуре плавления (Tm) из FASTA-файла."
+    )
+    parser.add_argument("input_fasta", help="Входной FASTA-файл с зондами")
+    parser.add_argument("output_fasta", help="Выходной FASTA-файл для отфильтрованных зондов")
+    parser.add_argument("--tm_min", type=float, default=65.0, help="Минимальная температура плавления (по умолчанию 65.0)")
+    parser.add_argument("--tm_max", type=float, default=72.0, help="Максимальная температура плавления (по умолчанию 72.0)")
+    return parser.parse_args()
 
-# Пороговые значения температуры плавления
-tm_min = 65.0
-tm_max = 72.0
+def main():
+    args = parse_args()
+    filtered_probes = []
 
-filtered_probes = []
+    try:
+        records = list(SeqIO.parse(args.input_fasta, "fasta"))
+    except Exception as e:
+        sys.exit(f"[Ошибка] Не удалось прочитать FASTA: {e}")
 
-for record in SeqIO.parse(gc_filtered_input, "fasta"):
-    sequence = str(record.seq)
-    
-    # Фильтруем по длине
-    if len(sequence) == 120:
-        tm = mt.Tm_NN(sequence)  # Использует nearest-neighbor метод
-        
-        if tm_min <= tm <= tm_max:
-            filtered_probes.append(record)
+    for record in records:
+        sequence = str(record.seq).upper()
+        if len(sequence) == 120 and set(sequence).issubset({"A", "T", "G", "C"}):
+            tm = mt.Tm_NN(sequence)
+            if args.tm_min <= tm <= args.tm_max:
+                filtered_probes.append(record)
 
-# Сохраняем отфильтрованные последовательности
-SeqIO.write(filtered_probes, tm_filtered_output, "fasta")
+    SeqIO.write(filtered_probes, args.output_fasta, "fasta")
+    print(f"[✓] {len(filtered_probes)} зондов записано в {args.output_fasta} (Tm от {args.tm_min} до {args.tm_max} °C)")
 
-print(f"{len(filtered_probes)} probes written to {tm_filtered_output} (length = 120 nt, Tm 65–72°C)")
+if __name__ == "__main__":
+    main()
+
