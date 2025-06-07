@@ -1,9 +1,9 @@
+import argparse
 from pathlib import Path
+from typing import List, Union
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from typing import List, Union
-from os import PathLike
 
 
 class ProbeGenerator:
@@ -14,8 +14,8 @@ class ProbeGenerator:
 
     def __init__(
         self,
-        input_fasta: Union[str, PathLike] = "data/brca_exons.fa",
-        output_fasta: Union[str, PathLike] = "data/brca_probes.fa",
+        input_fasta: Union[str, Path],
+        output_fasta: Union[str, Path],
         probe_length: int = 120,
     ):
         self.input_fasta = Path(input_fasta)
@@ -23,13 +23,10 @@ class ProbeGenerator:
         self.probe_length = probe_length
 
     def make_probes(self, exon_seq: str, exon_id: str) -> List[SeqRecord]:
-        """
-        Generate all overlapping 120-nt probes from a single exon sequence.
-        """
+        """Generate all overlapping probes from a single exon sequence."""
         probes = []
         exon_len = len(exon_seq)
 
-        # Skip exons shorter than probe length
         if exon_len < self.probe_length:
             return probes
 
@@ -42,9 +39,7 @@ class ProbeGenerator:
         return probes
 
     def generate_all(self) -> None:
-        """
-        Generate probes for all exons and write to output FASTA.
-        """
+        """Generate probes for all exons and write to output FASTA."""
         all_probes = []
 
         for record in SeqIO.parse(self.input_fasta, "fasta"):
@@ -55,6 +50,14 @@ class ProbeGenerator:
 
         SeqIO.write(all_probes, self.output_fasta, "fasta")
         print(f"[✓] {len(all_probes)} probes written to {self.output_fasta}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate overlapping 120-nt probes from exon sequences.")
+    parser.add_argument("input_fasta", help="Input FASTA file with exon sequences")
+    parser.add_argument("output_fasta", help="Output FASTA file to save probes")
+    parser.add_argument("--probe-length", type=int, default=12_
+
 
 
 # Пример использования:
