@@ -1,46 +1,49 @@
 import argparse
 import re
+import math
 from Bio import SeqIO
 from Bio.Seq import Seq
-from Bio.SeqUtils.lc_pattern import low_complexity_regions
+from collections import Counter
 
-# Параметры
 PROBE_LENGTH = 120
-HOMOPOLYMER_THRESHOLD = 5
-TANDEM_MIN_REPEATS = 3
-PALINDROME_MIN_LENGTH = 6
 
-def has_homopolymers(seq: str) -> bool:
+def has_homopolymers(seq: str, threshold: int) -> bool:
+    """Проверка на гомополимеры длиной threshold и больше."""
     return bool(re.search(r"(A{%d,}|T{%d,}|G{%d,}|C{%d,})" % (
-        HOMOPOLYMER_THRESHOLD,
-        HOMOPOLYMER_THRESHOLD,
-        HOMOPOLYMER_THRESHOLD,
-        HOMOPOLYMER_THRESHOLD
-    ), seq))
+        threshold, threshold, threshold, threshold), seq))
 
-def has_tandem_repeats(seq: str) -> bool:
+def has_tandem_repeats(seq: str, min_repeats: int) -> bool:
+    """Поиск тандемных повторов (2–5 нт)"""
     for size in range(2, 6):
-        pattern = re.compile(r"((\w{%d}))\2{%d,}" % (size, TANDEM_MIN_REPEATS - 1))
+        pattern = re.compile(r"((\w{%d}))\2{%d,}" % (size, min_repeats - 1))
         if pattern.search(seq):
             return True
     return False
 
-def has_palindromes(seq_obj: Seq) -> bool:
+def has_palindromes(seq_obj: Seq, min_length: int = 6) -> bool:
+    """Проверка на палиндромные последовательности"""
     seq = str(seq_obj)
-    for i in range(len(seq) - PALINDROME_MIN_LENGTH + 1):
-        for l in range(PALINDROME_MIN_LENGTH, len(seq) - i + 1):
+    for i in range(len(seq) - min_length + 1):
+        for l in range(min_length, len(seq) - i + 1):
             fragment = seq[i:i + l]
             if fragment == str(Seq(fragment).reverse_complement()):
                 return True
     return False
 
-def has_low_complexity(seq_obj: Seq) -> bool:
-    return len(low_complexity_regions(seq_obj)) > 0
+def shannon_entropy(seq: str) -> float:
+    """Вычисляет энтропию Шеннона"""
+    freq = Counter(seq)
+    length = len(seq)
+    return -sum((count / length) * math.log2(count / length) for count in freq.values())
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Фильтрация зондов от структурных артефактов")
     parser.add_argument("input_fasta", help="Входной FASTA-файл")
     parser.add_argument("output_fasta", help="Выходной FASTA-файл")
+    parser.add_argument("--max-homopolymer", type=int, default=5, help="Максимальная допустимая длина гомополимера (по умолчанию 5)")
+    parser.add_argument("--max-repeats", type=int, default=3, help="Минимальное число тандемных повторов для фильтрации (по умолчанию 3)")
+    parser.add_argument("--min-entropy", type=float, default=1.8, help="Минимально допустимая энтропия Шеннона (по умолчанию 1.8)")
+    parser.add_argument("--probe-length", type=int, default=120, help="Длина зонда (по умолчанию 120)")
     return parser.parse_args()
 
 def main():
@@ -49,25 +52,28 @@ def main():
     output_file = args.output_fasta
 
     filtered_probes = []
+    total = 0
 
     for record in SeqIO.parse(input_file, "fasta"):
         seq = record.seq.upper()
-        if len(seq) != PROBE_LENGTH:
+        if len(seq) != args.probe_length:
             continue
-        if has_homopolymers(str(seq)):
+        total += 1
+
+        if has_homopolymers(str(seq), args.max_homopolymer):
             continue
-        if has_tandem_repeats(str(seq)):
+        if has_tandem_repeats(str(seq), args.max_repeats):
             continue
         if has_palindromes(seq):
             continue
-        if has_low_complexity(seq):
+        if shannon_entropy(str(seq)) < args.min_entropy:
             continue
+
         filtered_probes.append(record)
 
     SeqIO.write(filtered_probes, output_file, "fasta")
-
-    total = sum(1 for r in SeqIO.parse(input_file, "fasta") if len(r.seq) == PROBE_LENGTH)
-    print(f"[✓] Сохранено {len(filtered_probes)} из {total} зондов длиной {PROBE_LENGTH} нт")
+    print(f"[✓] Сохранено {len(filtered_probes)} из {total} зондов длиной {args.probe_length} нт")
 
 if __name__ == "__main__":
     main()
+
