@@ -1,22 +1,16 @@
+import argparse
 import subprocess
 from Bio import SeqIO
 
-# Файлы
-input_file = "Probes_final_filtered.fa"
-output_file = "Probes_structure_filtered.fa"
-
-# Порог по свободной энергии ΔG (в ккал/моль)
-dg_threshold = -9.0
+# Параметры по умолчанию
 PROBE_LENGTH = 120
+DEFAULT_DG_THRESHOLD = -9.0
 
-def calculate_dg(sequence):
-    """
-    Вычисляет ΔG вторичной структуры с помощью RNAfold.
-    Возвращает ΔG (ккал/моль) или None в случае ошибки.
-    """
+def calculate_dg(sequence: str) -> float | None:
+    """Вычисляет ΔG вторичной структуры с помощью RNAfold."""
     try:
         result = subprocess.run(
-            ["RNAfold", "--noPS"],  # отключает генерацию файла с картинкой
+            ["RNAfold", "--noPS"],
             input=sequence,
             capture_output=True,
             text=True,
@@ -27,27 +21,44 @@ def calculate_dg(sequence):
             dg_str = output_lines[1].split()[-1].strip("()")
             return float(dg_str)
     except Exception as e:
-        print(f"Ошибка при обработке последовательности: {e}")
+        print(f"[!] Ошибка RNAfold: {e}")
     return None
 
-# Основной процесс
-filtered_records = []
+def parse_args():
+    parser = argparse.ArgumentParser(description="Фильтрация зондов по ΔG вторичной структуры (RNAfold)")
+    parser.add_argument("input_fasta", help="Входной FASTA-файл")
+    parser.add_argument("output_fasta", help="Выходной FASTA-файл")
+    parser.add_argument("--dg-threshold", type=float, default=DEFAULT_DG_THRESHOLD,
+                        help="Порог ΔG (по умолчанию: -9.0 ккал/моль)")
+    return parser.parse_args()
 
-print("Фильтрация зондов по вторичной структуре (ΔG)...")
+def main():
+    args = parse_args()
 
-for record in SeqIO.parse(input_file, "fasta"):
-    seq = str(record.seq).upper()
+    input_file = args.input_fasta
+    output_file = args.output_fasta
+    dg_threshold = args.dg_threshold
 
-    # Фильтрация по длине
-    if len(seq) != PROBE_LENGTH:
-        continue
+    filtered_records = []
+    total_checked = 0
 
-    dg = calculate_dg(seq)
-    if dg is not None and dg > dg_threshold:
-        record.description += f" ΔG={dg:.2f}"
-        filtered_records.append(record)
+    print(f"[•] Обработка {input_file}, порог ΔG: {dg_threshold} ккал/моль...")
 
-# Сохранение результатов
-SeqIO.write(filtered_records, output_file, "fasta")
+    for record in SeqIO.parse(input_file, "fasta"):
+        seq = str(record.seq).upper()
 
-print(f"Готово! {len(filtered_records)} зондов сохранено в {output_file} (ΔG > {dg_threshold})")
+        if len(seq) != PROBE_LENGTH:
+            continue
+
+        total_checked += 1
+        dg = calculate_dg(seq)
+        if dg is not None and dg > dg_threshold:
+            record.description += f" ΔG={dg:.2f}"
+            filtered_records.append(record)
+
+    SeqIO.write(filtered_records, output_file, "fasta")
+
+    print(f"[✓] Сохранено {len(filtered_records)} зондов из {total_checked} (ΔG > {dg_threshold}) → {output_file}")
+
+if __name__ == "__main__":
+    main()
