@@ -1,5 +1,16 @@
+# Python-зависимости
 biopython==1.81
 pandas==2.0.3
 requests==2.31.0
 tqdm==4.66.1
 pytest==7.4.0
+
+# Системные утилиты (должны быть установлены отдельно)
+# Для Ubuntu/Debian:
+# sudo apt install bedtools samtools bowtie2 viennarna
+
+# Для macOS (через Homebrew):
+# brew install bedtools samtools bowtie2 viennarna
+
+# Для conda:
+# conda install -c bioconda bedtools samtools bowtie2 viennarna
