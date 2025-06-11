@@ -56,10 +56,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate overlapping 120-nt probes from exon sequences.")
     parser.add_argument("input_fasta", help="Input FASTA file with exon sequences")
     parser.add_argument("output_fasta", help="Output FASTA file to save probes")
-    parser.add_argument("--probe-length", type=int, default=12_
+    parser.add_argument("--probe-length", type=int, default=12_)
 
 
 
-# Пример использования:
-# pg = ProbeGenerator("exons.fa", "probes.fa")
-# pg.generate_all()
