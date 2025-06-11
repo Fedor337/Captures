@@ -84,45 +84,9 @@ GC-содержание: слишком низкое или высокое пр�
   - Температуре плавления (Tm).
   - Повторам (гомополимеры, ди-/тринуклеотидные паттерны, палиндромы).
   - Предсказанной вторичной структуре (ΔG через RNAfold).
-- Запуск через Python-скрипт (`main.py`) с аргументами командной строки.
 - Модульная структура для будущего расширения (выравнивание, отчеты).
 
----
 
-## 📦 Требования
-
-### 🔹 Системные требования
-- Python ≥ 3.8.
-- [`bedtools`](https://bedtools.readthedocs.io/) ≥ 2.30 — для извлечения FASTA.
-- [`RNAfold`](https://www.tbi.univie.ac.at/RNA/) — опционально, используется для фильтрации по вторичной структуре (--structure-filter).
-
-> Установка bedtools:
-> ```bash
-> sudo apt install bedtools        # Debian/Ubuntu
-> brew install bedtools            # macOS
-> conda install -c bioconda bedtools
-> ```
-
-> Установка RNAfold (ViennaRNA):
-> ```bash
-> sudo apt install vienna-rna      # Debian/Ubuntu
-> brew install viennarna           # macOS
-> conda install -c bioconda viennarna
-> ````
-
-### 🔹 Python-пакеты
-Установка через pip:
-
-```bash
-pip install -r requirements.txt
-
-## ⚡ Быстрый запуск(через коммандную строку)
-
-Запустите пайплайн используя предоставленный `main.py` скрипт:
-
-```bash
-python main.py
-```
 
 #### Необязательные аргументы:
 
@@ -150,9 +114,6 @@ python main.py
 - `--palindrome-min-length <int>` – min. length for palindromes (default: 6)
 
 ### 🧪 Пример запуска
-
-# 🚀 Запуск пайплайна с параметрами по умолчанию
-python main.py
 
 # 🔄 Перезагрузка данных и генерация зондов
 python main.py --force-download --force-prep
@@ -199,81 +160,6 @@ python main.py \\
   --disable-palindromes --disable-low-complexity \
   --palindrome-min-length 6
 
-### 🧬 Использование из Python (альтернатива)
-
-from reference_preparer import ReferencePreparer
-from probe_generator import ProbeGenerator
-from probe_filter_pipeline import ProbeFilterPipeline
-
-### 📥 Шаг 1: Подготовка референсных данных
-
-rp = ReferencePreparer(
-    genome_url="ftp://...",                          # Опционально: свои URL
-    annotation_url="ftp://...",
-    output_dir="data"                                # По умолчанию: "data"
-)
-rp.prepare_all(force_download=True, force_preparing=True)  # Загрузка, извлечение, обработка. Оба аргумента по умолчанию False.
-
-### 🧬 Step 2: Создание перекрывающихся зондов на основе BRCA1/2 экзонах
-```python
-pg = ProbeGenerator(
-    input_fasta="data/brca_exons.fa",
-    output_fasta="data/brca_probes.raw.fa",
-    probe_length=120,
-    max_step=60
-)
-pg.generate_all() 
-```
-
-### 🧹 Step 3: Apply filters to probes
-Each filtering step is available as a separate method and returns a filtered list of SeqRecord objects:
-```python
-pf = ProbeFilterPipeline(
-    input_fasta="data/brca_probes.raw.fa",
-    output_fasta="data/brca_probes.filtered.fa",
-    gc_min=40,
-    gc_max=60,
-    tm_min=65,
-    tm_max=72,
-    allow_repeats=False,
-    structure_filter=True,
-    dg_threshold=-9.0
-    homopolymer_threshold=6,
-    tandem_min_repeats=3,
-    enable_palindromes=False,
-    enable_low_complexity=False,
-    palindrome_min_length=6
-)
-pf.apply_all()
-```
-
-### 🛠 Optional: Use filters independently
-```python
-from Bio import SeqIO
-
-probes = list(SeqIO.parse("data/brca_probes.raw.fa", "fasta"))
-
-filtered_gc = pf.filter_by_gc(probes)
-filtered_tm = pf.filter_by_tm(filtered_gc)
-filtered_final = pf.filter_by_repeats(filtered_tm)
-# Optional: structure filtering (requires RNAfold)
-filtered_final = pf.filter_by_structure(filtered_rep)
-
-SeqIO.write(filtered_final, "data/brca_probes.manual.fa", "fasta")
-```
-This is useful if you want to inspect intermediate results or apply filters interactively in notebooks.
-
-### 🧾 Available Filters
-
-| Method                      | Description                                                                 |
-|-----------------------------|-----------------------------------------------------------------------------|
-| `filter_by_gc(probes)`      | Keep probes with GC content within `gc_min`–`gc_max` (%)                   |
-| `filter_by_tm(probes)`      | Keep probes with melting temperature within `tm_min`–`tm_max` (°C)         |
-| `filter_by_repeats(probes)` | Remove probes with homopolymers, tandem repeats, palindromes, low-complexity |
-| `filter_by_structure(probes)` | Remove probes with strong secondary structure (ΔG < `dg_threshold`, via RNAfold) |
-
----
-
 ## 🗂 File Structure
 
 ```
@@ -300,51 +186,9 @@ This is useful if you want to inspect intermediate results or apply filters inte
 
 ---
 
-## 📌 To Do
-
-- Add summary report (number of probes filtered at each step)
-- Add support for multi-threaded structure filtering
-- Add BLAST/BWA alignment step for specificity checking
-- Visualize probe tiling across exons
-- Add CLI output in JSON or TSV (optional metadata per probe)
-- Add Jupyter Notebook wrapper for exploratory use
-
----
-
 ## 📖 License
 
 MIT License. See `LICENSE` file.
-
----
-
-## ⚖️ Bash Shell Wrapper (Optional)
-
-For convenience, you may use a simple shell script:
-
-```bash
-#!/bin/bash
-
-# Run full pipeline with default parameters
-echo "[INFO] Starting BRCA1/2 pipeline"
-python main.py \\
-    --force-download --force-prep \\
-    --probe-length 120 --max-step 60 \\
-    --gc-min 40 --gc-max 60 \\
-    --tm-min 65 --tm-max 72 \\
-    --no-repeats --structure-filter --dg-threshold -9.0
-  --homopolymer-threshold 6 --tandem-min-repeats 3 \
-  --disable-palindromes --disable-low-complexity \
-  --palindrome-min-length 6
-```
-
-Save this to `run_pipeline.sh`, then run:
-
-```bash
-chmod +x run_pipeline.sh
-./run_pipeline.sh
-```
-
----
 
 
 ## 🧾 Альтернативная ручная инструкция
@@ -388,6 +232,8 @@ samtools view -Sb probes_aligned.sam > probes_aligned.bam
 samtools sort probes_aligned.bam -o probes_aligned.sorted.bam
 samtools index probes_aligned.sorted.bam
 
-# Проверка специфичности (1 зонд = 1 экзон)
-samtools view probes_aligned.sorted.bam | cut -f1 | sort | uniq -c | awk '$1 == 1'
+# Вывод специфических качественных ридов в отдельный фаста файл и их количества в терминал
+samtools view -q 20 -F 4 probes_aligned.sorted.bam | awk '{print ">"$1"\n"$10}' | tee high_quality_probes.fa | grep "^>" | wc -l
+
+
 ```
