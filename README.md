@@ -85,80 +85,6 @@
   - Предсказанной вторичной структуре (ΔG через RNAfold).
 - Модульная структура для будущего расширения (выравнивание, отчеты).
 
-
-
-#### Необязательные аргументы:
-
-- `--force-download` – re-download reference data
-- `--force-prep` – regenerate exon BED and FASTA files
-- `--input-fasta path` – override exon input FASTA file (default: `data/brca_exons.fa`)
-- `--output-fasta path` – override probe output FASTA file (default: `data/brca_probes.fa`)
-- `--probe-length N` – set probe length (default: 120)
-- `--max-step N` – set max step between probes (default: 60)
-
-#### Аргументы фильтрации:
-- `--gc-min` <float> – minimum GC content (%), default: 40.0
-- `--gc-max` <float> – maximum GC content (%), default: 60.0
-- `--tm-min` <float> – minimum Tm (°C), default: 65.0
-- `--tm-max` <float> – maximum Tm (°C), default: 72.0
-- `--no-repeats` – exclude probes with homopolymers or repeat patterns
-- `--structure-filter` – enable RNAfold-based secondary structure filtering
-- `--dg-threshold` <float> – minimum acceptable ΔG (kcal/mol), default: -9.0
-
-#### Repeat filter parameters:
-- `--homopolymer-threshold <int>` – min. length of homopolymers (default: 6)
-- `--tandem-min-repeats <int>` – min. number of motif repeats (default: 3)
-- `--disable-palindromes` – disable filtering of palindromic sequences
-- `--disable-low-complexity` – disable low-complexity region filtering
-- `--palindrome-min-length <int>` – min. length for palindromes (default: 6)
-
-### 🧪 Пример запуска
-
-# 🔄 Перезагрузка данных и генерация зондов
-python main.py --force-download --force-prep
-
-# 🧬 Использование пользовательских длины и шага зондов
-python main.py --probe-length 100 --max-step 40
-
-# 📁 Сохранение в другую папку
-python main.py --output-fasta results/probes_v1.fa
-
-# 💾 Сохранение в файл с меткой времени
-python main.py --output-fasta results/probes_$(date +%Y%m%d).fa
-
-# 🧬 Использование своего FASTA файла экзонов
-python main.py --input-fasta data/my_exons.fa \
-               --output-fasta results/my_probes.fa
-
-# 🛠 Генерация зондов без загрузки данных
-python main.py --force-prep
-
-# 🌡 Фильтрация только по температуре плавления
-python main.py --tm-min 64 --tm-max 70
-
-# 🚫 Удаление проб с повторами
-python main.py --no-repeats
-
-# 🧱 Настройка параметров повторов
-python main.py --homopolymer-threshold 5 --tandem-min-repeats 4
-
-# 🚫 Отключение отдельных фильтров повторов
-python main.py --disable-palindromes --disable-low-complexity
-
-# 💧 Фильтрация по GC и вторичной структуре
-python main.py --gc-min 42 --gc-max 58 --structure-filter --dg-threshold -8.0
-
-# 🔬 Полная фильтрация: GC, Tm, повторы, структура
-python main.py \\
-  --force-download --force-prep \\
-  --probe-length 120 --max-step 60 \\
-  --gc-min 40 --gc-max 60 \\
-  --tm-min 65 --tm-max 72 \\
-  --no-repeats --structure-filter --dg-threshold -9.0
-  --homopolymer-threshold 6 --tandem-min-repeats 3 \
-  --disable-palindromes --disable-low-complexity \
-  --palindrome-min-length 6
-
 ## 🗂 File Structure
 
 ```
@@ -168,19 +94,18 @@ python main.py \\
 │   ├── gencode.v19.annotation.gtf  # Gene annotation (unzipped)
 │   ├── brca_exons.bed            # BRCA1/2 exon coordinates
 │   ├── brca_exons.fa             # Extracted exon sequences
-│   ├── brca_probes.raw.fa        # Raw unfiltered probes
-│   ├── brca_probes.fa            # Final filtered probes
 │   └── ...                       # Future: alignments, reports
 ├── reference_preparer.py         # Class for downloading and preprocessing reference data
 ├── probe_generator.py            # Class for generating overlapping probes
-├── probe_filter_pipeline.py      # Class for filtering probes (GC, Tm, repeats, ΔG)
 ├── main.py                       # Command-line entry point
 ├── requirements.txt
 ├── .gitignore
-├── test_reference_preparer.py
-├── test_probe_generator.py
-├── test_probe_filter_pipeline.py
-├── test_structure_filter.py
+├── reference_preparer.py
+├── probe_generator.py
+├── structure_filter.py
+├── temperature_filter.py
+├── GC_filter.py
+├── repetitions_filter.py
 ```
 
 ---
