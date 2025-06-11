@@ -127,7 +127,7 @@ grep -E 'BRCA1|BRCA2' gencode.v19.annotation.gtf | grep 'exon' > brca_exons.gtf
 awk 'BEGIN{OFS="\t"} {match($0, /gene_name "([^"]+)"/, a); print $1, $4 - 1, $5, a[1]}' brca_exons.gtf > brca_exons.bed
 
 # Убираем дубли и сортируем
-sort -k1,1 -k2,2n brca_exons.bed | uniq > brca_exons.sorted.bed
+sort -k1,1 -k2,2n brca_exons.bed | uniq > brca_exons_sorted.bed
 
 # Скачиваем последовательность генома
 wget https://ilmn-dragen-giab-samples.s3.amazonaws.com/FASTA/hs37d5.fa
@@ -149,7 +149,7 @@ bwa mem hs37d5.fa probes_final.fa > probes_aligned.sam
 
 # Преобразование в BAM, сортировка, индексация
 samtools view -Sb probes_aligned.sam > probes_aligned.bam
-samtools sort probes_aligned.bam -o probes_aligned.sorted.bam
+samtools sort probes_aligned.bam -o probes_aligned_sorted.bam
 samtools index probes_aligned.sorted.bam
 
 # Вывод специфических качественных ридов в отдельный фаста файл и их количества в терминал
