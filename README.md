@@ -96,7 +96,6 @@
 ├── .gitignore
 ├── reference_preparer.py
 ├── probe_generator.py
-├── structure_filter.py
 ├── temperature_filter.py
 ├── GC_filter.py
 ├── repetitions_filter.py
