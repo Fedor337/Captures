@@ -6,7 +6,6 @@ import subprocess
 import pandas as pd
 import requests
 from pathlib import Path
-from tqdm import tqdm
 
 class ReferencePreparer:
     def __init__(self,
@@ -36,6 +35,14 @@ class ReferencePreparer:
         print(f"[{bar}] {percent}% - {message}")
 
     @staticmethod
+    def print_download_bar(downloaded, total, name):
+        if total > 0:
+            percent = downloaded / total * 100
+            done = int(40 * downloaded / total)
+            bar = '=' * done + '-' * (40 - done)
+            print(f"\r[{bar}] {percent:.0f}% - {name}   ", end='', flush=True)
+
+    @staticmethod
     def download_file(url: str, destination_path: Path, chunk_size: int = 8192, force_download: bool = False) -> None:
         if destination_path.exists() and not force_download:
             print(f"[✓] Уже существует: {destination_path}")
@@ -53,9 +60,7 @@ class ReferencePreparer:
                         for chunk in r.iter_content(chunk_size=chunk_size):
                             f.write(chunk)
                             downloaded += len(chunk)
-                            done = int(40 * downloaded / total) if total else 0
-                            bar = '=' * done + '-' * (40 - done)
-                            print(f"\r[{bar}] {int(downloaded / total * 100) if total else 0}% - {destination_path.name}", end='')
+                            ReferencePreparer.print_download_bar(downloaded, total, destination_path.name)
                 print()
 
             elif scheme == "ftp":
@@ -71,9 +76,7 @@ class ReferencePreparer:
                                 break
                             out_file.write(chunk)
                             downloaded += len(chunk)
-                            done = int(40 * downloaded / total) if total else 0
-                            bar = '=' * done + '-' * (40 - done)
-                            print(f"\r[{bar}] {int(downloaded / total * 100) if total else 0}% - {destination_path.name}", end='')
+                            ReferencePreparer.print_download_bar(downloaded, total, destination_path.name)
                 print()
             else:
                 raise ValueError(f"Unsupported URL scheme: {scheme}")
@@ -99,9 +102,7 @@ class ReferencePreparer:
                         break
                     f_out.write(chunk)
                     processed += len(chunk)
-                    done = int(40 * processed / total)
-                    bar = '=' * done + '-' * (40 - done)
-                    print(f"\r[{bar}] {int(processed / total * 100)}% - {output_path.name}", end='')
+                    ReferencePreparer.print_download_bar(processed, total, output_path.name)
             print()
             print(f"[✓] Распаковано: {output_path}")
         except Exception as e:
@@ -177,5 +178,3 @@ class ReferencePreparer:
         self.extract_brca_exons(force_preparing=force_preparing)
         self.extract_sequences_bedtools(force_preparing=force_preparing)
         print("[✅] Все этапы подготовки завершены")
-
-
