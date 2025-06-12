@@ -36,11 +36,11 @@ class ReferencePreparer:
 
     @staticmethod
     def print_download_bar(downloaded, total, name):
-        if total > 0:
+        if total > 0 and downloaded <= total:
             percent = downloaded / total * 100
             done = int(40 * downloaded / total)
             bar = '=' * done + '-' * (40 - done)
-            print(f"\r[{bar}] {percent:.0f}% - {name}   ", end='', flush=True)
+            print(f"\r[{bar}] {percent:3.0f}% - {name:30}", end='', flush=True)
 
     @staticmethod
     def download_file(url: str, destination_path: Path, chunk_size: int = 8192, force_download: bool = False) -> None:
@@ -119,7 +119,6 @@ class ReferencePreparer:
         self.update_progress("Геном загружен и распакован")
 
     def get_fasta_chrom_format(self) -> str:
-        """Определяет, содержат ли заголовки FASTA префикс 'chr'"""
         try:
             with open(self.genome, 'r') as f:
                 for line in f:
@@ -158,7 +157,6 @@ class ReferencePreparer:
         exons = df[(df["feature"] == "exon") & (df["info"].str.contains('gene_name \"BRCA1\"|gene_name \"BRCA2\"'))].copy()
         exons["gene"] = exons["info"].str.extract(r'gene_name \"([^\"]+)\"')
 
-        # Приводим названия хромосом к формату FASTA
         if chrom_prefix:
             exons["chr"] = exons["chr"].apply(lambda c: c if c.startswith('chr') else f'chr{c}')
         else:
