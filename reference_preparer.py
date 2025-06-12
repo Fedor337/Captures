@@ -118,6 +118,17 @@ class ReferencePreparer:
         self.gunzip_file(self.genome_gz, self.genome, force_download=force_download)
         self.update_progress("Геном загружен и распакован")
 
+    def get_fasta_chrom_format(self) -> str:
+        """Определяет, содержат ли заголовки FASTA префикс 'chr'"""
+        try:
+            with open(self.genome, 'r') as f:
+                for line in f:
+                    if line.startswith('>'):
+                        return 'chr' if line[1:].startswith('chr') else ''
+        except Exception as e:
+            print(f"[!] Ошибка при определении формата хромосом: {e}")
+        return ''
+
     def index_with_bowtie2(self, force: bool = False) -> None:
         index_files = [self.genome.with_suffix(f".fa.{s}.bt2") for s in ['1', '2', '3', '4', 'rev.1', 'rev.2']]
         if all(f.exists() for f in index_files) and not force:
@@ -138,12 +149,21 @@ class ReferencePreparer:
             print(f"[✓] BED уже существует: {self.bed}")
             self.update_progress("BED экзонов уже существует")
             return
+
         print(f"[📍] Извлекаем координаты экзонов BRCA1/2...")
+        chrom_prefix = self.get_fasta_chrom_format()
+
         df = pd.read_csv(self.gtf, sep='\t', comment='#', header=None)
         df.columns = ["chr", "source", "feature", "start", "end", "score", "strand", "frame", "info"]
         exons = df[(df["feature"] == "exon") & (df["info"].str.contains('gene_name \"BRCA1\"|gene_name \"BRCA2\"'))].copy()
         exons["gene"] = exons["info"].str.extract(r'gene_name \"([^\"]+)\"')
-        exons["chr"] = exons["chr"].str.replace("^", "")
+
+        # Приводим названия хромосом к формату FASTA
+        if chrom_prefix:
+            exons["chr"] = exons["chr"].apply(lambda c: c if c.startswith('chr') else f'chr{c}')
+        else:
+            exons["chr"] = exons["chr"].apply(lambda c: c.replace('chr', ''))
+
         bed_df = exons[["chr", "start", "end", "gene"]].copy()
         bed_df["start"] -= 1
         bed_df = bed_df.sort_values(by=["chr", "start"])
@@ -178,3 +198,4 @@ class ReferencePreparer:
         self.extract_brca_exons(force_preparing=force_preparing)
         self.extract_sequences_bedtools(force_preparing=force_preparing)
         print("[✅] Все этапы подготовки завершены")
+
