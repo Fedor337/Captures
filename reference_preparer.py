@@ -57,23 +57,27 @@ class ReferencePreparer:
                             bar = '=' * done + '-' * (40 - done)
                             print(f"\r[{bar}] {int(downloaded / total * 100) if total else 0}% - {destination_path.name}", end='')
                 print()
+
             elif scheme == "ftp":
                 print(f"[↓] Скачиваем FTP: {url}")
-                with urllib.request.urlopen(url) as response, open(destination_path, 'wb') as out_file:
-                    total = response.length or 0
-                    downloaded = 0
-                    while True:
-                        chunk = response.read(chunk_size)
-                        if not chunk:
-                            break
-                        out_file.write(chunk)
-                        downloaded += len(chunk)
-                        done = int(40 * downloaded / total) if total else 0
-                        bar = '=' * done + '-' * (40 - done)
-                        print(f"\r[{bar}] {int(downloaded / total * 100) if total else 0}% - {destination_path.name}", end='')
+                with urllib.request.urlopen(url) as response:
+                    with open(destination_path, 'wb') as out_file:
+                        total = response.headers.get("Content-length")
+                        total = int(total) if total is not None else 0
+                        downloaded = 0
+                        while True:
+                            chunk = response.read(chunk_size)
+                            if not chunk:
+                                break
+                            out_file.write(chunk)
+                            downloaded += len(chunk)
+                            done = int(40 * downloaded / total) if total else 0
+                            bar = '=' * done + '-' * (40 - done)
+                            print(f"\r[{bar}] {int(downloaded / total * 100) if total else 0}% - {destination_path.name}", end='')
                 print()
             else:
                 raise ValueError(f"Unsupported URL scheme: {scheme}")
+
             print(f"[✓] Скачано: {destination_path}")
         except Exception as e:
             print(f"[!] Ошибка скачивания: {e}")
@@ -173,4 +177,5 @@ class ReferencePreparer:
         self.extract_brca_exons(force_preparing=force_preparing)
         self.extract_sequences_bedtools(force_preparing=force_preparing)
         print("[✅] Все этапы подготовки завершены")
+
 
