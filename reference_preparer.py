@@ -6,6 +6,7 @@ import subprocess
 import pandas as pd
 import requests
 from pathlib import Path
+import math
 
 class ReferencePreparer:
     def __init__(self,
@@ -28,11 +29,16 @@ class ReferencePreparer:
 
     def update_progress(self, message: str):
         self.current_step += 1
-        percent = int((self.current_step / self.total_steps) * 100)
+        percent = (self.current_step / self.total_steps) * 100
+        self.print_bar(percent, message)
+
+    @staticmethod
+    def print_bar(percent: float, label: str):
         bar_length = 40
         filled_length = int(bar_length * percent // 100)
         bar = '=' * filled_length + '-' * (bar_length - filled_length)
-        print(f"[{bar}] {percent}% - {message}")
+        percent_str = f"{math.floor(percent):3.0f}%"
+        print(f"\r[{bar}] {percent_str} - {label:<35}")
 
     @staticmethod
     def print_download_bar(downloaded, total, name):
@@ -40,7 +46,8 @@ class ReferencePreparer:
             percent = downloaded / total * 100
             done = int(40 * downloaded / total)
             bar = '=' * done + '-' * (40 - done)
-            print(f"\r[{bar}] {percent:3.0f}% - {name:30}", end='', flush=True)
+            percent_str = f"{percent:3.0f}%"
+            print(f"\r[{bar}] {percent_str} - {name:<35}", end='', flush=True)
 
     @staticmethod
     def download_file(url: str, destination_path: Path, chunk_size: int = 8192, force_download: bool = False) -> None:
@@ -196,4 +203,3 @@ class ReferencePreparer:
         self.extract_brca_exons(force_preparing=force_preparing)
         self.extract_sequences_bedtools(force_preparing=force_preparing)
         print("[✅] Все этапы подготовки завершены")
-
