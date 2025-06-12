@@ -24,6 +24,16 @@ class ReferencePreparer:
         self.gtf = self.data_dir / "gencode.v19.annotation.gtf"
         self.bed = self.data_dir / "brca_exons_sorted.bed"
         self.exons_fa = self.data_dir / "brca_exons.fa"
+        self.total_steps = 5
+        self.current_step = 0
+
+    def update_progress(self, message: str):
+        self.current_step += 1
+        percent = int((self.current_step / self.total_steps) * 100)
+        bar_length = 40
+        filled_length = int(bar_length * percent // 100)
+        bar = '=' * filled_length + '-' * (bar_length - filled_length)
+        print(f"[{bar}] {percent}% - {message}")
 
     @staticmethod
     def download_file(url: str, destination_path: Path, chunk_size: int = 8192, force_download: bool = False) -> None:
@@ -38,21 +48,30 @@ class ReferencePreparer:
                 with requests.get(url, stream=True) as r:
                     r.raise_for_status()
                     total = int(r.headers.get('Content-Length', 0))
-                    with tqdm(total=total, unit='B', unit_scale=True, desc=destination_path.name) as pbar:
-                        with open(destination_path, 'wb') as f:
-                            for chunk in r.iter_content(chunk_size=chunk_size):
-                                f.write(chunk)
-                                pbar.update(len(chunk))
+                    downloaded = 0
+                    with open(destination_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=chunk_size):
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            done = int(40 * downloaded / total) if total else 0
+                            bar = '=' * done + '-' * (40 - done)
+                            print(f"\r[{bar}] {int(downloaded / total * 100) if total else 0}% - {destination_path.name}", end='')
+                print()
             elif scheme == "ftp":
                 print(f"[↓] Скачиваем FTP: {url}")
                 with urllib.request.urlopen(url) as response, open(destination_path, 'wb') as out_file:
-                    with tqdm(unit='B', unit_scale=True, desc=destination_path.name) as pbar:
-                        while True:
-                            chunk = response.read(chunk_size)
-                            if not chunk:
-                                break
-                            out_file.write(chunk)
-                            pbar.update(len(chunk))
+                    total = response.length or 0
+                    downloaded = 0
+                    while True:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+                        out_file.write(chunk)
+                        downloaded += len(chunk)
+                        done = int(40 * downloaded / total) if total else 0
+                        bar = '=' * done + '-' * (40 - done)
+                        print(f"\r[{bar}] {int(downloaded / total * 100) if total else 0}% - {destination_path.name}", end='')
+                print()
             else:
                 raise ValueError(f"Unsupported URL scheme: {scheme}")
             print(f"[✓] Скачано: {destination_path}")
@@ -68,14 +87,18 @@ class ReferencePreparer:
         try:
             print(f"[↪] Распаковка: {input_path.name}")
             total = os.path.getsize(input_path)
+            processed = 0
             with gzip.open(input_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
-                with tqdm(total=total, unit='B', unit_scale=True, desc=output_path.name) as pbar:
-                    while True:
-                        chunk = f_in.read(8192)
-                        if not chunk:
-                            break
-                        f_out.write(chunk)
-                        pbar.update(len(chunk))
+                while True:
+                    chunk = f_in.read(8192)
+                    if not chunk:
+                        break
+                    f_out.write(chunk)
+                    processed += len(chunk)
+                    done = int(40 * processed / total)
+                    bar = '=' * done + '-' * (40 - done)
+                    print(f"\r[{bar}] {int(processed / total * 100)}% - {output_path.name}", end='')
+            print()
             print(f"[✓] Распаковано: {output_path}")
         except Exception as e:
             print(f"[!] Ошибка распаковки: {e}")
@@ -84,19 +107,23 @@ class ReferencePreparer:
     def download_and_extract(self, force_download: bool = False) -> None:
         self.download_file(self.gtf_url, self.gtf_gz, force_download=force_download)
         self.gunzip_file(self.gtf_gz, self.gtf, force_download=force_download)
+        self.update_progress("GTF загружен и распакован")
 
         self.download_file(self.genome_url, self.genome_gz, force_download=force_download)
         self.gunzip_file(self.genome_gz, self.genome, force_download=force_download)
+        self.update_progress("Геном загружен и распакован")
 
     def index_with_bowtie2(self, force: bool = False) -> None:
         index_files = [self.genome.with_suffix(f".fa.{s}.bt2") for s in ['1', '2', '3', '4', 'rev.1', 'rev.2']]
         if all(f.exists() for f in index_files) and not force:
             print(f"[✓] Индекс Bowtie2 уже существует.")
+            self.update_progress("Bowtie2 индекс уже существует")
             return
         print(f"[🔧] Строим индекс Bowtie2...")
         try:
             subprocess.run(["bowtie2-build", str(self.genome), str(self.genome)], check=True)
             print(f"[✓] Bowtie2 индекс готов.")
+            self.update_progress("Bowtie2 индекс построен")
         except Exception as e:
             print(f"[!] Ошибка индексации Bowtie2: {e}")
             raise
@@ -104,6 +131,7 @@ class ReferencePreparer:
     def extract_brca_exons(self, force_preparing: bool = False) -> None:
         if self.bed.exists() and not force_preparing:
             print(f"[✓] BED уже существует: {self.bed}")
+            self.update_progress("BED экзонов уже существует")
             return
         print(f"[📍] Извлекаем координаты экзонов BRCA1/2...")
         df = pd.read_csv(self.gtf, sep='\t', comment='#', header=None)
@@ -116,10 +144,12 @@ class ReferencePreparer:
         bed_df = bed_df.sort_values(by=["chr", "start"])
         bed_df.to_csv(self.bed, sep='\t', header=False, index=False)
         print(f"[✓] Сохранено в BED: {self.bed}")
+        self.update_progress("Экзоны BRCA извлечены")
 
     def extract_sequences_bedtools(self, force_preparing: bool = False) -> None:
         if self.exons_fa.exists() and not force_preparing:
             print(f"[✓] FASTA уже существует: {self.exons_fa}")
+            self.update_progress("FASTA экзонов уже существует")
             return
         print(f"[🧬] Извлекаем последовательности экзонов через bedtools...")
         cmd = [
@@ -132,6 +162,7 @@ class ReferencePreparer:
         try:
             subprocess.run(cmd, check=True)
             print(f"[✓] Секвенции сохранены в: {self.exons_fa}")
+            self.update_progress("Последовательности экзонов извлечены")
         except Exception as e:
             print(f"[!] Ошибка bedtools getfasta: {e}")
             raise
@@ -141,4 +172,5 @@ class ReferencePreparer:
         self.index_with_bowtie2(force=force_preparing)
         self.extract_brca_exons(force_preparing=force_preparing)
         self.extract_sequences_bedtools(force_preparing=force_preparing)
+        print("[✅] Все этапы подготовки завершены")
 
