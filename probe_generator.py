@@ -73,8 +73,3 @@ def main():
 
 
 
-
-
-# Пример использования:
-# pg = ProbeGenerator("exons.fa", "probes.fa")
-# pg.generate_all()

@@ -6,8 +6,7 @@ import subprocess
 import pandas as pd
 import requests
 from pathlib import Path
-# from tqdm import tqdm  # Установи через pip install tqdm
-
+import math
 
 class ReferencePreparer:
     def __init__(self,
@@ -25,156 +24,183 @@ class ReferencePreparer:
         self.gtf = self.data_dir / "gencode.v19.annotation.gtf"
         self.bed = self.data_dir / "brca_exons_sorted.bed"
         self.exons_fa = self.data_dir / "brca_exons.fa"
+        self.total_steps = 5
+        self.current_step = 0
+
+    def update_progress(self, message: str):
+        self.current_step += 1
+        percent = min((self.current_step / self.total_steps) * 100, 100)
+        self.print_bar(percent, message)
 
     @staticmethod
-    def download_file(url: str, destination_path: Path, chunk_size: int = 8192, force_download: bool = False) -> None:
-        """
-        Downloads a file from a given URL (http, https, or ftp) to a local path.
+    def print_bar(percent: float, label: str):
+        bar_length = 40
+        percent = min(percent, 100)
+        filled_length = int(bar_length * percent // 100)
+        bar = '=' * filled_length + '-' * (bar_length - filled_length)
+        percent_str = f"{percent:3.0f}%"
+        print(f"\r[{bar}] {percent_str} - {label:<35}", flush=True)
 
-        Supports streaming download for large files and avoids loading entire content into memory.
+    @staticmethod
+    def print_download_bar(downloaded, total, name):
+        if total > 0:
+            percent = min(downloaded / total * 100, 100)
+            done = min(int(40 * downloaded / total), 40)
+            bar = '=' * done + '-' * (40 - done)
+            percent_str = f"{percent:3.0f}%"
+            print(f"\r[{bar}] {percent_str} - {name:<35}", end='', flush=True)
 
-        Args:
-            url (str): The URL to download from. Supports http(s) and ftp.
-            dest_path (Path): Path to save the downloaded file.
-            chunk_size (int): Number of bytes to read per iteration. Default is 8192 (8 KB).
-
-        Raises:
-            ValueError: If the URL scheme is unsupported.
-            Exception: If the download fails for any reason (network error, etc.).
-        """
-
-        if os.path.exists(destination_path) and not force_download:
-            print(f"[OK] Already exists: {destination_path}")
+    @staticmethod
+    def download_file(url: str, destination_path: Path, chunk_size: int = 8192) -> None:
+        if destination_path.exists():
+            print(f"[\u2713] Уже существует: {destination_path}")
             return
 
         scheme = url.split("://")[0]
-
-        if scheme in ("http", "https"):
-            try:
+        try:
+            if scheme in ("http", "https"):
+                print(f"[\u2193] Скачиваем: {url}")
                 with requests.get(url, stream=True) as r:
                     r.raise_for_status()
-                    print(f"[GET] Downloading HTTP: {url}")
-                    with destination_path.open('wb') as f:
+                    total = int(r.headers.get('Content-Length', 0))
+                    downloaded = 0
+                    with open(destination_path, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=chunk_size):
                             f.write(chunk)
-                print(f"[OK] Downloaded HTTP: {destination_path}")
-            except Exception as e:
-                print(f"[!] HTTP download failed: {e}")
-                raise
+                            downloaded += len(chunk)
+                            ReferencePreparer.print_download_bar(downloaded, total, destination_path.name)
+                print()
 
-        elif scheme == "ftp":
-            try:
-                print(f"[GET] Downloading FTP: {url}")
-                with urllib.request.urlopen(url) as response, destination_path.open('wb') as out_file:
-                                while True:
-                                    chunk = response.read(chunk_size)
-                                    if not chunk:
-                                        break
-                                    out_file.write(chunk)
-                                print(f"[OK] Downloaded FTP: {destination_path}")
-            except Exception as e:
-                print(f"[!] FTP download failed: {e}")
-                raise
+            elif scheme == "ftp":
+                print(f"[\u2193] Скачиваем FTP: {url}")
+                with urllib.request.urlopen(url) as response:
+                    meta = response.info()
+                    total = int(meta.get("Content-Length", 0))
+                    downloaded = 0
+                    with open(destination_path, 'wb') as out_file:
+                        while True:
+                            chunk = response.read(chunk_size)
+                            if not chunk:
+                                break
+                            out_file.write(chunk)
+                            downloaded += len(chunk)
+                            ReferencePreparer.print_download_bar(downloaded, total, destination_path.name)
+                print()
+            else:
+                raise ValueError(f"Unsupported URL scheme: {scheme}")
 
-        else:
-            raise ValueError(f"Unsupported URL scheme: {scheme}")
-
-    @staticmethod
-    def gunzip_file(input_path: Path, output_path: Path, force_download: bool = False) -> None:
-        """
-        Extracts a .gz file to a specified output file.
-
-        Uses a streaming approach to minimize memory usage. Skips extraction
-        if the output file already exists.
-
-        Args:
-            input_path (Path): Path to the input .gz file.
-            output_path (Path): Path to write the uncompressed output file.
-
-        Raises:
-            Exception: If decompression fails (e.g., corrupt .gz file).
-        """
-
-        if os.path.exists(output_path) and not force_download:
-            print(f"[OK] Already extracted: {output_path}")
-            return
-        try:
-            print(f"[GET] Extracting GunZip: {input_path}")
-            with gzip.open(input_path, 'rb') as f_in, output_path.open('wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-            print(f"[OK] Extracted to: {output_path}")
+            print(f"[\u2713] Скачано: {destination_path}")
         except Exception as e:
-            print(f"[!] Extraction failed: {e}")
+            print(f"[!] Ошибка скачивания: {e}")
             raise
 
-    def download_and_extract(self, force_download: bool = False) -> None:
-        """
-        Downloads and extracts both the genome FASTA file and GTF annotation file.
-
-        Skips files if already present in the working directory.
-        """
-
-        self.download_file(self.gtf_url, self.gtf_gz, force_download=force_download)
-        self.gunzip_file(self.gtf_gz, self.gtf, force_download=force_download)
-
-        self.download_file(self.genome_url, self.genome_gz, force_download=force_download)
-        self.gunzip_file(self.genome_gz, self.genome, force_download=force_download)
-
-    def extract_brca_exons(self, force_preparing: bool = False) -> None:
-        """
-        Extracts exon coordinates for BRCA1 and BRCA2 genes from a GTF annotation file,
-        and saves them as a BED-format file with columns: chr, start, end, gene.
-
-        This method:
-        - reads the GTF file,
-        - filters only 'exon' features,
-        - selects only rows with gene_name BRCA1 or BRCA2,
-        - adjusts start coordinate to 0-based for BED format,
-        - and writes the result to a sorted .bed file.
-
-        Output file is saved to: self.bed
-        """
-        if self.bed.exists() and not force_preparing:
-            print(f"[OK] Already exists: {self.bed}")
+    @staticmethod
+    def gunzip_file(input_path: Path, output_path: Path) -> None:
+        if output_path.exists():
+            print(f"[\u2713] Уже распакован: {output_path}")
             return
+        try:
+            print(f"[\u21AA] Распаковка: {input_path.name}")
+            total = os.path.getsize(input_path)
+            processed = 0
+            with gzip.open(input_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
+                while True:
+                    chunk = f_in.read(8192)
+                    if not chunk:
+                        break
+                    f_out.write(chunk)
+                    processed += len(chunk)
+                    ReferencePreparer.print_download_bar(processed, total, output_path.name)
+            print()
+            print(f"[\u2713] Распаковано: {output_path}")
+        except Exception as e:
+            print(f"[!] Ошибка распаковки: {e}")
+            raise
 
-        print(f"[GET] Extracting BRCA1/2 exon coordinates from: {self.gtf}")
+    def download_and_extract(self, force_download=False) -> None:
+        if not self.gtf.exists() or force_download:
+            if not self.gtf_gz.exists() or force_download:
+                self.download_file(self.gtf_url, self.gtf_gz)
+            self.gunzip_file(self.gtf_gz, self.gtf)
+        else:
+            print(f"[\u2713] GTF уже распакован: {self.gtf}")
+        self.update_progress("GTF загружен и распакован")
+
+        if not self.genome.exists() or force_download:
+            if not self.genome_gz.exists() or force_download:
+                self.download_file(self.genome_url, self.genome_gz)
+            self.gunzip_file(self.genome_gz, self.genome)
+        else:
+            print(f"[\u2713] Геном уже распакован: {self.genome}")
+        self.update_progress("Геном загружен и распакован")
+
+    def get_fasta_chrom_format(self) -> str:
+        try:
+            with open(self.genome, 'r') as f:
+                for line in f:
+                    if line.startswith('>'):
+                        return 'chr' if line[1:].startswith('chr') else ''
+        except Exception as e:
+            print(f"[!] Ошибка при определении формата хромосом: {e}")
+        return ''
+
+    def index_with_bwa(self, force=False) -> None:
+        index_files = [self.genome.with_suffix(suffix) for suffix in ['.amb', '.ann', '.bwt', '.pac', '.sa']]
+        if all(f.exists() for f in index_files) and not force:
+            print(f"[\u2713] Индекс BWA уже существует.")
+            self.update_progress("BWA индекс уже существует")
+            return
+        print(f"[\U0001F527] Строим индекс BWA...")
+        try:
+            subprocess.run(["bwa", "index", str(self.genome)], check=True)
+            print(f"[\u2713] BWA индекс готов.")
+            self.update_progress("BWA индекс построен")
+        except Exception as e:
+            print(f"[!] Ошибка индексации BWA: {e}")
+            raise
+
+    def extract_brca_exons(self) -> None:
+        print(f"[\U0001F4CD] Извлекаем координаты экзонов BRCA1/2...")
+        chrom_prefix = self.get_fasta_chrom_format()
+
         df = pd.read_csv(self.gtf, sep='\t', comment='#', header=None)
         df.columns = ["chr", "source", "feature", "start", "end", "score", "strand", "frame", "info"]
+        exons = df[(df["feature"] == "exon") & (df["info"].str.contains('gene_name \"BRCA1\"|gene_name \"BRCA2\"'))].copy()
+        exons["gene"] = exons["info"].str.extract(r'gene_name \"([^\"]+)\"')
 
-        exons = df[
-            (df["feature"] == "exon") &
-            (df["info"].str.contains('gene_name "BRCA1"|gene_name "BRCA2"'))
-        ].copy()
+        if chrom_prefix:
+            exons["chr"] = exons["chr"].astype(str).apply(lambda c: c if c.startswith('chr') else f'chr{c}')
+        else:
+            exons["chr"] = exons["chr"].astype(str).apply(lambda c: c.replace('chr', ''))
 
-        exons["gene"] = exons["info"].str.extract(r'gene_name "([^"]+)"')
         bed_df = exons[["chr", "start", "end", "gene"]].copy()
-        bed_df["start"] = bed_df["start"] - 1
+        bed_df["start"] = bed_df["start"].astype(int) - 1
         bed_df = bed_df.sort_values(by=["chr", "start"])
         bed_df.to_csv(self.bed, sep='\t', header=False, index=False)
-        print(f"[OK] Saved BED: {self.bed}")
+        print(f"[\u2713] Сохранено в BED: {self.bed}")
+        self.update_progress("Экзоны BRCA извлечены")
 
-    def extract_sequences_bedtools(self, force_preparing: bool = False) -> None:
-        if self.exons_fa.exists() and not force_preparing:
-            print(f"[OK] Already exists: {self.exons_fa}")
-            return
-
-        print(f"[GET] Extracting exon sequences from genome")
+    def extract_sequences_bedtools(self) -> None:
+        print(f"[\U0001F9EC] Извлекаем последовательности экзонов через bedtools...")
         cmd = [
             "bedtools", "getfasta",
-            "-fi", self.genome,
-            "-bed", self.bed,
-            "-fo", self.exons_fa,
+            "-fi", str(self.genome),
+            "-bed", str(self.bed),
+            "-fo", str(self.exons_fa),
             "-name"
         ]
         try:
             subprocess.run(cmd, check=True)
-            print(f"[OK] Extracted sequences to: {self.exons_fa}")
+            print(f"[\u2713] Секвенции сохранены в: {self.exons_fa}")
+            self.update_progress("Последовательности экзонов извлечены")
         except Exception as e:
-            print(f"[!] bedtools failed: {e}")
+            print(f"[!] Ошибка bedtools getfasta: {e}")
             raise
 
     def prepare_all(self, force_download=False, force_preparing=False) -> None:
         self.download_and_extract(force_download=force_download)
-        self.extract_brca_exons(force_preparing=force_preparing)
-        self.extract_sequences_bedtools(force_preparing=force_preparing)
+        self.index_with_bwa(force=force_preparing)
+        self.extract_brca_exons()
+        self.extract_sequences_bedtools()
+        print("[\u2705] Все этапы подготовки завершены")
+

@@ -95,7 +95,5 @@ def main():
     SeqIO.write(filtered_probes, output_file, "fasta")
     print(f"[✓] Сохранено {len(filtered_probes)} из {total} зондов длиной {args.probe_length} нт")
 
-if __name__ == "__main__":
-    main()
 
 

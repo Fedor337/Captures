@@ -31,6 +31,5 @@ def main():
     SeqIO.write(filtered_probes, args.output_fasta, "fasta")
     print(f"[✓] {len(filtered_probes)} зондов записано в {args.output_fasta} (GC от {args.gc_min}% до {args.gc_max}%)")
 
-if __name__ == "__main__":
-    main()
+
 

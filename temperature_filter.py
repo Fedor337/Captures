@@ -32,6 +32,3 @@ def main():
     SeqIO.write(filtered_probes, args.output_fasta, "fasta")
     print(f"[✓] {len(filtered_probes)} зондов записано в {args.output_fasta} (Tm от {args.tm_min} до {args.tm_max} °C)")
 
-if __name__ == "__main__":
-    main()
-
