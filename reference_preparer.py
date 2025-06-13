@@ -53,13 +53,13 @@ class ReferencePreparer:
     @staticmethod
     def download_file(url: str, destination_path: Path, chunk_size: int = 8192) -> None:
         if destination_path.exists():
-            print(f"[✓] Уже существует: {destination_path}")
+            print(f"[\u2713] Уже существует: {destination_path}")
             return
 
         scheme = url.split("://")[0]
         try:
             if scheme in ("http", "https"):
-                print(f"[↓] Скачиваем: {url}")
+                print(f"[\u2193] Скачиваем: {url}")
                 with requests.get(url, stream=True) as r:
                     r.raise_for_status()
                     total = int(r.headers.get('Content-Length', 0))
@@ -72,7 +72,7 @@ class ReferencePreparer:
                 print()
 
             elif scheme == "ftp":
-                print(f"[↓] Скачиваем FTP: {url}")
+                print(f"[\u2193] Скачиваем FTP: {url}")
                 with urllib.request.urlopen(url) as response:
                     meta = response.info()
                     total = int(meta.get("Content-Length", 0))
@@ -89,7 +89,7 @@ class ReferencePreparer:
             else:
                 raise ValueError(f"Unsupported URL scheme: {scheme}")
 
-            print(f"[✓] Скачано: {destination_path}")
+            print(f"[\u2713] Скачано: {destination_path}")
         except Exception as e:
             print(f"[!] Ошибка скачивания: {e}")
             raise
@@ -97,10 +97,10 @@ class ReferencePreparer:
     @staticmethod
     def gunzip_file(input_path: Path, output_path: Path) -> None:
         if output_path.exists():
-            print(f"[✓] Уже распакован: {output_path}")
+            print(f"[\u2713] Уже распакован: {output_path}")
             return
         try:
-            print(f"[↪] Распаковка: {input_path.name}")
+            print(f"[\u21AA] Распаковка: {input_path.name}")
             total = os.path.getsize(input_path)
             processed = 0
             with gzip.open(input_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
@@ -112,7 +112,7 @@ class ReferencePreparer:
                     processed += len(chunk)
                     ReferencePreparer.print_download_bar(processed, total, output_path.name)
             print()
-            print(f"[✓] Распаковано: {output_path}")
+            print(f"[\u2713] Распаковано: {output_path}")
         except Exception as e:
             print(f"[!] Ошибка распаковки: {e}")
             raise
@@ -123,7 +123,7 @@ class ReferencePreparer:
                 self.download_file(self.gtf_url, self.gtf_gz)
             self.gunzip_file(self.gtf_gz, self.gtf)
         else:
-            print(f"[✓] GTF уже распакован: {self.gtf}")
+            print(f"[\u2713] GTF уже распакован: {self.gtf}")
         self.update_progress("GTF загружен и распакован")
 
         if not self.genome.exists() or force_download:
@@ -131,7 +131,7 @@ class ReferencePreparer:
                 self.download_file(self.genome_url, self.genome_gz)
             self.gunzip_file(self.genome_gz, self.genome)
         else:
-            print(f"[✓] Геном уже распакован: {self.genome}")
+            print(f"[\u2713] Геном уже распакован: {self.genome}")
         self.update_progress("Геном загружен и распакован")
 
     def get_fasta_chrom_format(self) -> str:
@@ -144,23 +144,23 @@ class ReferencePreparer:
             print(f"[!] Ошибка при определении формата хромосом: {e}")
         return ''
 
-    def index_with_bowtie2(self, force=False) -> None:
-        index_files = [self.genome.with_suffix(f".fa.{s}.bt2") for s in ['1', '2', '3', '4', 'rev.1', 'rev.2']]
+    def index_with_bwa(self, force=False) -> None:
+        index_files = [self.genome.with_suffix(suffix) for suffix in ['.amb', '.ann', '.bwt', '.pac', '.sa']]
         if all(f.exists() for f in index_files) and not force:
-            print(f"[✓] Индекс Bowtie2 уже существует.")
-            self.update_progress("Bowtie2 индекс уже существует")
+            print(f"[\u2713] Индекс BWA уже существует.")
+            self.update_progress("BWA индекс уже существует")
             return
-        print(f"[🔧] Строим индекс Bowtie2...")
+        print(f"[\U0001F527] Строим индекс BWA...")
         try:
-            subprocess.run(["bowtie2-build", str(self.genome), str(self.genome)], check=True)
-            print(f"[✓] Bowtie2 индекс готов.")
-            self.update_progress("Bowtie2 индекс построен")
+            subprocess.run(["bwa", "index", str(self.genome)], check=True)
+            print(f"[\u2713] BWA индекс готов.")
+            self.update_progress("BWA индекс построен")
         except Exception as e:
-            print(f"[!] Ошибка индексации Bowtie2: {e}")
+            print(f"[!] Ошибка индексации BWA: {e}")
             raise
 
     def extract_brca_exons(self) -> None:
-        print(f"[📍] Извлекаем координаты экзонов BRCA1/2...")
+        print(f"[\U0001F4CD] Извлекаем координаты экзонов BRCA1/2...")
         chrom_prefix = self.get_fasta_chrom_format()
 
         df = pd.read_csv(self.gtf, sep='\t', comment='#', header=None)
@@ -177,11 +177,11 @@ class ReferencePreparer:
         bed_df["start"] = bed_df["start"].astype(int) - 1
         bed_df = bed_df.sort_values(by=["chr", "start"])
         bed_df.to_csv(self.bed, sep='\t', header=False, index=False)
-        print(f"[✓] Сохранено в BED: {self.bed}")
+        print(f"[\u2713] Сохранено в BED: {self.bed}")
         self.update_progress("Экзоны BRCA извлечены")
 
     def extract_sequences_bedtools(self) -> None:
-        print(f"[🧬] Извлекаем последовательности экзонов через bedtools...")
+        print(f"[\U0001F9EC] Извлекаем последовательности экзонов через bedtools...")
         cmd = [
             "bedtools", "getfasta",
             "-fi", str(self.genome),
@@ -191,7 +191,7 @@ class ReferencePreparer:
         ]
         try:
             subprocess.run(cmd, check=True)
-            print(f"[✓] Секвенции сохранены в: {self.exons_fa}")
+            print(f"[\u2713] Секвенции сохранены в: {self.exons_fa}")
             self.update_progress("Последовательности экзонов извлечены")
         except Exception as e:
             print(f"[!] Ошибка bedtools getfasta: {e}")
@@ -199,7 +199,8 @@ class ReferencePreparer:
 
     def prepare_all(self, force_download=False, force_preparing=False) -> None:
         self.download_and_extract(force_download=force_download)
-        self.index_with_bowtie2(force=force_preparing)
-        self.extract_brca_exons()  # Always regenerate
-        self.extract_sequences_bedtools()  # Always regenerate
-        print("[✅] Все этапы подготовки завершены")
+        self.index_with_bwa(force=force_preparing)
+        self.extract_brca_exons()
+        self.extract_sequences_bedtools()
+        print("[\u2705] Все этапы подготовки завершены")
+
