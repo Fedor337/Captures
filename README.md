@@ -39,7 +39,7 @@
     /^[ACGTacgt]+$/ {seq=$0} 
     /^[().]+/ {
         struct=$0; getline; dg=$1; 
-        if (dg >= -9.0) {
+        if (dg >= -4.0) {
             print name"\n"seq >> "probes_tm_gc_repetitions_structure_filtered.fa"; 
             count++
         }
@@ -149,10 +149,10 @@ bwa mem hs37d5.fa probes_final.fa > probes_aligned.sam
 # Преобразование в BAM, сортировка, индексация
 samtools view -Sb probes_aligned.sam > probes_aligned.bam
 samtools sort probes_aligned.bam -o probes_aligned_sorted.bam
-samtools index probes_aligned.sorted.bam
+samtools index probes_aligned_sorted.bam
 
 # Вывод специфических качественных ридов в отдельный фаста файл и их количества в терминал
-samtools view -q 20 -F 4 probes_aligned.sorted.bam | awk '{print ">"$1"\n"$10}' | tee high_quality_probes.fa | grep "^>" | wc -l
+samtools view -q 20 -F 4 probes_aligned_sorted.bam | awk '{print ">"$1"\n"$10}' | tee high_quality_probes.fa | grep "^>" | wc -l
 
 
 ```
