@@ -96,7 +96,7 @@
 ├── .gitignore
 ├── reference_preparer.py
 ├── temperature_filter.py
-├── GC_filter.py
+├── gc_filter.py
 ├── repetitions_filter.py
 ```
 
