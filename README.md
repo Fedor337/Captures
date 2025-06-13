@@ -145,7 +145,7 @@ python3 tm_filter.py brca_probes.fa probes_tm_filtered.fa --tm_min 65 --tm_max 7
 # Фильтрация по GC (по умолчанию 40–60%)
 python3 gc_filter.py probes_tm_filtered.fa probes_tm_gc_filtered.fa --gc_min 36 --gc_max 60
 # Удаление зондов с повторами (гомополимерные, тандемные, низкосложные, паллиндромы)
-python3 gc_filter.py  probes_tm_gc_filtered.fa  probes_tm_gc_repetitions_filtered.fa --max-homopolymer 6 --max-repeats --min-entropy --probe-length
+python3 gc_filter.py  probes_tm_gc_filtered.fa  probes_tm_gc_repetitions_filtered.fa --max-homopolymer 5 --max-repeats 5 --min-entropy 1.8 
 # Удаление зондов со вторичной структурой
 RNAfold --noconv --noPS < probes_tm_gc_repetitions_filtered.fa | awk '
     /^>/ {name=$0} 
