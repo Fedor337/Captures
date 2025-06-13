@@ -138,11 +138,14 @@ bwa index hs37d5.fa
 # Извлекаем последовательности экзонов
 bedtools getfasta -fi hs37d5.fa -bed brca_exons.bed -fo brca_exons.fa -name
 
-# Генерация зондов по экзонам (по умолчанию 120 nt с шагом ≤ 60)
-python3 probe_generator.py brca_exons.fa brca_probes.fa 
-# Фильтрация по GC 40–60%
-# Фильтрация по температуре 65–72°C
+# Генерация зондов по экзонам (по умолчанию 120 нк с шагом = 1)
+python3 probe_generator.py brca_exons.fa brca_probes.fa --probe-length 120 --step 1
+# Фильтрация по температуре (по умолчанию 65–72°C)
+python3 tm_filter.py brca_probes.fa probes_tm_filtered.fa --tm_min 65 --tm_max 72
+# Фильтрация по GC (по умолчанию 40–60%)
+python3 gc_filter.py probes_tm_filtered.fa probes_tm_gc_filtered.fa --gc_min 36 --gc_max 60
 # Удаление зондов с повторами (гомополимерные, тандемные, низкосложные, паллиндромы)
+python3 gc_filter.py probes_tm_filtered.fa probes_tm_gc_filtered.fa 
 # Удаление зондов со вторичной структурой
 
 # Выравнивание на геном
