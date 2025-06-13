@@ -160,7 +160,7 @@ RNAfold --noconv --noPS < probes_tm_gc_repetitions_filtered.fa | awk '
     END {print "Количество подходящих зондов:", count}'
 
 # Выравнивание на геном
-bwa mem hs37d5.fa probes_final.fa > probes_aligned.sam
+bwa mem hs37d5.fa *probes_tm_gc_repetitions_structure_filtered.fa* > probes_aligned.sam
 
 # Преобразование в BAM, сортировка, индексация
 samtools view -Sb probes_aligned.sam > probes_aligned.bam
