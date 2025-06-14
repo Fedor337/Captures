@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Set
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -9,6 +9,7 @@ from Bio.SeqRecord import SeqRecord
 class ProbeGenerator:
     """
     Generates overlapping probes (sliding window) from exon sequences.
+    Keeps only unique probe sequences.
     """
 
     def __init__(
@@ -40,23 +41,29 @@ class ProbeGenerator:
         return probes
 
     def generate_all(self) -> None:
-        """Generate probes for all exons and write to output FASTA."""
-        all_probes = []
+        """Generate unique probes for all exons and write to output FASTA."""
+        unique_probes: List[SeqRecord] = []
+        seen_seqs: Set[str] = set()
 
         for record in SeqIO.parse(self.input_fasta, "fasta"):
             exon_id = record.id
             exon_seq = str(record.seq).upper()
             exon_probes = self.make_probes(exon_seq, exon_id)
-            all_probes.extend(exon_probes)
 
-        SeqIO.write(all_probes, self.output_fasta, "fasta")
-        print(f"[✓] {len(all_probes)} probes written to {self.output_fasta}")
+            for probe in exon_probes:
+                seq_str = str(probe.seq)
+                if seq_str not in seen_seqs:
+                    seen_seqs.add(seq_str)
+                    unique_probes.append(probe)
+
+        SeqIO.write(unique_probes, self.output_fasta, "fasta")
+        print(f"[✓] {len(unique_probes)} unique probes written to {self.output_fasta}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate overlapping probes from exon sequences.")
+    parser = argparse.ArgumentParser(description="Generate overlapping unique probes from exon sequences.")
     parser.add_argument("input_fasta", help="Input FASTA file with exon sequences")
-    parser.add_argument("output_fasta", help="Output FASTA file to save generated probes")
+    parser.add_argument("output_fasta", help="Output FASTA file to save unique probes")
     parser.add_argument("--probe-length", type=int, default=120, help="Length of each probe (default: 120)")
     parser.add_argument("--step", type=int, default=1, help="Step size between probes (default: 1 for 99% overlap)")
 
@@ -69,6 +76,10 @@ def main():
         step=args.step
     )
     pg.generate_all()
+
+
+if __name__ == "__main__":
+    main()
 
 
 
