@@ -11,7 +11,7 @@ import math
 class ReferencePreparer:
     def __init__(self,
                  genome_url: str = "ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz",
-                 gtf_url: str = "ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_19/gencode.v19.annotation.gtf.gz",
+                 gtf_url: str = "ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_43/gencode.v43.annotation.gtf.gz",
                  data_dir: str | Path = "data"):
         self.genome_url = genome_url
         self.gtf_url = gtf_url
@@ -20,8 +20,8 @@ class ReferencePreparer:
 
         self.genome_gz = self.data_dir / "hs37d5.fa.gz"
         self.genome = self.data_dir / "hs37d5.fa"
-        self.gtf_gz = self.data_dir / "gencode.v19.annotation.gtf.gz"
-        self.gtf = self.data_dir / "gencode.v19.annotation.gtf"
+        self.gtf_gz = self.data_dir / "gencode.v43.annotation.gtf.gz"
+        self.gtf = self.data_dir / "gencode.v43.annotation.gtf"
         self.bed = self.data_dir / "brca_exons_sorted.bed"
         self.exons_fa = self.data_dir / "brca_exons.fa"
         self.total_steps = 5
