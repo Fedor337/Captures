@@ -124,11 +124,11 @@ MIT License. Смотреть `LICENSE` файл.
 # BRCA1/2 Probe Design Pipeline
 
 # Скачиваем аннотацию генома
-wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_19/gencode.v19.annotation.gtf.gz
-gunzip gencode.v19.annotation.gtf.gz
+wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_43/gencode.v43.annotation.gtf.gz 
+gunzip gencode.v43.annotation.gtf.gz
 
 # Находим строки относящиеся к BRCA1 и BRCA2
-grep -E 'BRCA1|BRCA2' gencode.v19.annotation.gtf | grep 'exon' > brca_exons.gtf
+grep -E 'BRCA1|BRCA2' gencode.v43.annotation.gtf | grep 'exon' > brca_exons.gtf
 
 # Достаем координаты
 awk 'BEGIN{OFS="\t"} {match($0, /gene_name "([^"]+)"/, a); print $1, $4 - 1, $5, a[1]}' brca_exons.gtf > brca_exons.bed
