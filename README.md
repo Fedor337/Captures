@@ -139,6 +139,9 @@ sort -k1,1 -k2,2n brca_exons.bed | uniq > brca_exons_sorted.bed
 # Скачиваем последовательность генома
 wget https://ilmn-dragen-giab-samples.s3.amazonaws.com/FASTA/hs37d5.fa
 
+#Добавляем префиксы chr перед хромосомами в файле hs37d5.fa
+sed 's/^>/>chr/' hs37d5.fa > hs37d5_chr.fa
+
 # Индексируем геном
 bwa index hs37d5.fa
 
