@@ -9,8 +9,8 @@ def has_homopolymers(seq: str, threshold: int) -> bool:
     return bool(re.search(r"(A{%d,}|T{%d,}|G{%d,}|C{%d,})" % (
         threshold, threshold, threshold, threshold), seq))
 
-def has_tandem_repeats(seq: str, min_repeats: int) -> bool:
-    for size in range(2, 6):
+def has_tandem_repeats(seq: str, min_repeats: int, max_motif: int) -> bool:
+    for size in range(2, max_motif + 1):
         pattern = re.compile(r"((\w{%d}))\2{%d,}" % (size, min_repeats - 1))
         if pattern.search(seq):
             return True
@@ -38,12 +38,15 @@ def parse_args():
     parser.add_argument("--max-homopolymer", type=int, default=5, help="Макс. длина гомополимера")
     parser.add_argument("--max-repeats", type=int, default=3, help="Мин. число тандемных повторов")
     parser.add_argument("--min-entropy", type=float, default=1.8, help="Мин. энтропия Шеннона")
+    parser.add_argument("--tandem-min-repeats", type=int, default=3, help="Мин число повторов для тандемов")
+    parser.add_argument("--tandem-max-motif", type=int, default=5, help="Макс длина мотива для тандемов")
 
-    # Новые флаги для индивидуальной фильтрации
+    # Флаги для индивидуальной фильтрации
     parser.add_argument("--filter-homopolymers", action="store_true", help="Фильтрация по гомополимерам")
     parser.add_argument("--filter-tandem", action="store_true", help="Фильтрация по тандемным повторам")
     parser.add_argument("--filter-palindromes", action="store_true", help="Фильтрация по палиндромам")
     parser.add_argument("--filter-entropy", action="store_true", help="Фильтрация по энтропии")
+
 
     return parser.parse_args()
 
@@ -54,7 +57,6 @@ def main():
     total = 0
     filtered_probes = []
 
-    # Проверка, нужно ли фильтровать только по активным флагам
     active_filters = {
         "homopolymer": args.filter_homopolymers,
         "tandem": args.filter_tandem,
@@ -69,21 +71,19 @@ def main():
             continue
         total += 1
 
-        # Режим с указанием конкретных фильтров
         if filtering_mode:
             if args.filter_homopolymers and has_homopolymers(str(seq), args.max_homopolymer):
                 continue
-            if args.filter_tandem and has_tandem_repeats(str(seq), args.max_repeats):
+            if args.filter_tandem and has_tandem_repeats(str(seq), args.tandem_min_repeats, args.tandem_max_motif):
                 continue
             if args.filter_palindromes and has_palindromes(seq):
                 continue
             if args.filter_entropy and shannon_entropy(str(seq)) < args.min_entropy:
                 continue
         else:
-            # По умолчанию: применяются все
             if has_homopolymers(str(seq), args.max_homopolymer):
                 continue
-            if has_tandem_repeats(str(seq), args.max_repeats):
+            if has_tandem_repeats(str(seq), args.tandem_min_repeats, args.tandem_max_motif):
                 continue
             if has_palindromes(seq):
                 continue
@@ -96,7 +96,7 @@ def main():
 
     print(f"[📥] Всего прочитано зондов: {total}")
     print(f"[✓] Отфильтровано и записано: {len(filtered_probes)}")
-    print(f"[💾] Файл сохранён как: {output_file}")
+    print(f"[📀] Файл сохранён как: {output_file}")
     if filtering_mode:
         print(f"[⚙️] Используемые фильтры: {', '.join([k for k, v in active_filters.items() if v])}")
     else:
@@ -104,7 +104,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 
