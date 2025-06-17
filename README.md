@@ -38,7 +38,7 @@
 6. Разрезаем экзоны на отдельные олигонуклеотидные последовательности размерами 120 нуклеотидов перекрытием от 50% (здесь будет представлено перекрытие на 99%), из которых мы будем отбирать зонды.
 7. Дальше проводим фильтрацию:
 - Температура плавления (Tm): зонд должен иметь Tm в узком диапазоне, приблизительно 65–72 °C, для стабильной гибридизации (температура является самым важным фактором отбора). Для фильтрации запусаем код temperature_filter.py.
-- GC-содержание: ниже 40% или выше 60% приводит к нестабильности или неспецифичности. При создании дизайна, выход при данных параметрах был нулевым, нижнию границу необходимо было опустить до 30% верхнюю до 60%. Запускаем код gc_filter.py.
+- GC-содержание: ниже 40% или выше 60% приводит к нестабильности или неспецифичности. При создании дизайна, выход при данных параметрах был нулевым, нижнию границу необходимо было опустить до 30% верхнюю до 40%. Запускаем код gc_filter.py.
 - Повторы: зонды не должны иметь длинных гомополимерных, тандемных и низкосложных повторов, так как они приводят к низкой специфичности, образованию шпилек и слабой способностью к связыванию. Отбор производился по меньше 5 гомополимерных повторов, . Запускаем код repetition_filter.py
 7. Уникальность: зонд не должен гибридизоваться к внецелевым участкам — проверяется с помощью выравнивания.
 8. Производство и тестирование:
@@ -91,6 +91,7 @@
 ├── reference_preparer.py
 ├── temperature_filter.py
 ├── gc_filter.py
+├── dedublicator.py
 ├── repetitions_filter.py
 ```
 
@@ -129,10 +130,10 @@ wget https://ilmn-dragen-giab-samples.s3.amazonaws.com/FASTA/hs37d5.fa
 sed 's/^>/>chr/' hs37d5.fa > hs37d5_chr.fa
 
 # Индексируем геном
-bwa index hs37d5.fa
+bwa index hs37d5_chr.fa
 
 # Извлекаем последовательности экзонов
-bedtools getfasta -fi hs37d5.fa -bed brca_exons.bed -fo brca_exons.fa -name
+bedtools getfasta -fi hs37d5_chr.fa -bed brca_exons.bed -fo brca_exons.fa -name
 
 # Генерация зондов по экзонам (по умолчанию 120 нк с шагом = 1)
 python3 probe_generator.py brca_exons.fa brca_probes.fa --probe-length 120 --step 1
@@ -144,7 +145,7 @@ python3 gc_filter.py probes_tm_filtered.fa probes_tm_gc_filtered.fa --gc_min 36 
 python3 gc_filter.py  probes_tm_gc_filtered.fa  probes_tm_gc_repetitions_filtered.fa --max-homopolymer 5 --max-repeats 5 --min-entropy 1.8 
 
 # Выравнивание на геном
-bwa mem hs37d5.fa probes_tm_gc_repetitions_structure_filtered.fa > probes_aligned.sam
+bwa mem hs37d5_chr.fa probes_tm_gc_repetitions_structure_filtered.fa > probes_aligned.sam
 
 # Преобразование в BAM, сортировка, индексация
 samtools view -Sb probes_aligned.sam > probes_aligned.bam
@@ -153,6 +154,9 @@ samtools index probes_aligned_sorted.bam
 
 # Вывод специфических качественных ридов в отдельный фаста файл и их количества в терминал
 samtools view -q 20 -F 4 probes_aligned_sorted.bam | awk '{print ">"$1"\n"$10}' | tee high_quality_probes.fa | grep "^>" | wc -l
+
+# На любом этапе можно проверить последовательности на дубликаты
+python3 dedublicator.py high_quality_probes.fa
 
 
 ```
