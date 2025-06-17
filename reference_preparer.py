@@ -20,6 +20,7 @@ class ReferencePreparer:
 
         self.genome_gz = self.data_dir / "hs37d5.fa.gz"
         self.genome = self.data_dir / "hs37d5.fa"
+        self.genome_chr = self.data_dir / "hs37d5_chr.fa"
         self.gtf_gz = self.data_dir / "gencode.v43.annotation.gtf.gz"
         self.gtf = self.data_dir / "gencode.v43.annotation.gtf"
         self.bed = self.data_dir / "brca_exons_sorted.bed"
@@ -182,19 +183,54 @@ class ReferencePreparer:
 
     def extract_sequences_bedtools(self) -> None:
         print(f"[\U0001F9EC] Извлекаем последовательности экзонов через bedtools...")
-        cmd = [
-            "bedtools", "getfasta",
-            "-fi", str(self.genome),
-            "-bed", str(self.bed),
-            "-fo", str(self.exons_fa),
-            "-name"
-        ]
+
+        if not self.genome_chr.exists():
+            try:
+                print("[\u21AA] Добавляем префикс 'chr' к заголовкам FASTA...")
+                subprocess.run(["sed", "s/^>/\>chr/", str(self.genome)], stdout=open(self.genome_chr, 'w'), check=True)
+                print(f"[\u2713] Создан файл: {self.genome_chr}")
+            except Exception as e:
+                print(f"[!] Ошибка преобразования chr: {e}")
+                raise
+
         try:
-            subprocess.run(cmd, check=True)
+            subprocess.run([
+                "bedtools", "getfasta",
+                "-fi", str(self.genome_chr),
+                "-bed", str(self.bed),
+                "-fo", str(self.exons_fa),
+                "-name"
+            ], check=True)
             print(f"[\u2713] Секвенции сохранены в: {self.exons_fa}")
-            self.update_progress("Последовательности экзонов извлечены")
         except Exception as e:
             print(f"[!] Ошибка bedtools getfasta: {e}")
+            raise
+
+        try:
+            seen = set()
+            unique_records = []
+            with open(self.exons_fa, 'r') as f:
+                name, seq = None, []
+                for line in f:
+                    if line.startswith('>'):
+                        if name and (s := ''.join(seq)) not in seen:
+                            seen.add(s)
+                            unique_records.append((name, s))
+                        name = line.strip()
+                        seq = []
+                    else:
+                        seq.append(line.strip())
+                if name and (s := ''.join(seq)) not in seen:
+                    seen.add(s)
+                    unique_records.append((name, s))
+
+            with open(self.exons_fa, 'w') as f:
+                for name, seq in unique_records:
+                    f.write(f"{name}\n{seq}\n")
+            print(f"[\u2713] Удалены дубликаты. Осталось экзонов: {len(unique_records)}")
+            self.update_progress(f"Уникальные экзоны ({len(unique_records)}) сохранены")
+        except Exception as e:
+            print(f"[!] Ошибка фильтрации дубликатов: {e}")
             raise
 
     def prepare_all(self, force_download=False, force_preparing=False) -> None:
