@@ -93,7 +93,18 @@ def main():
         filtered_probes.append(record)
 
     SeqIO.write(filtered_probes, output_file, "fasta")
-    print(f"[✓] Сохранено {len(filtered_probes)} из {total} зондов длиной {args.probe_length} нт")
+
+    print(f"[📥] Всего прочитано зондов: {total}")
+    print(f"[✓] Отфильтровано и записано: {len(filtered_probes)}")
+    print(f"[💾] Файл сохранён как: {output_file}")
+    if filtering_mode:
+        print(f"[⚙️] Используемые фильтры: {', '.join([k for k, v in active_filters.items() if v])}")
+    else:
+        print(f"[⚙️] Использованы все фильтры по умолчанию")
+
+if __name__ == "__main__":
+    main()
+
 
 
 
