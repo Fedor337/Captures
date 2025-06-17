@@ -1,85 +1,87 @@
 import argparse
 from pathlib import Path
-from typing import List, Union, Set
+from typing import List, Set
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 
 class ProbeGenerator:
-    """
-    Generates overlapping probes (sliding window) from exon sequences.
-    Keeps only unique probe sequences.
-    """
-
-    def __init__(
-        self,
-        input_fasta: Union[str, Path],
-        output_fasta: Union[str, Path],
-        probe_length: int = 120,
-        step: int = 1,
-    ):
+    def __init__(self, input_fasta: str, output_fasta: str, probe_length: int, step: int):
         self.input_fasta = Path(input_fasta)
         self.output_fasta = Path(output_fasta)
         self.probe_length = probe_length
         self.step = step
 
-    def make_probes(self, exon_seq: str, exon_id: str) -> List[SeqRecord]:
-        """Generate all overlapping probes from a single exon sequence."""
+        if not self.input_fasta.exists():
+            raise FileNotFoundError(f"[Ошибка] Файл {self.input_fasta} не найден.")
+
+    def make_probes(self, sequence: str, exon_id: str) -> List[SeqRecord]:
         probes = []
-        exon_len = len(exon_seq)
-
-        if exon_len < self.probe_length:
-            return probes
-
-        for start in range(0, exon_len - self.probe_length + 1, self.step):
-            end = start + self.probe_length
-            probe_seq = exon_seq[start:end]
-            probe_id = f"{exon_id}_probe_{start+1}_{end}"
+        for i in range(0, len(sequence) - self.probe_length + 1, self.step):
+            probe_seq = sequence[i:i + self.probe_length]
+            probe_id = f"{exon_id}_probe_{i+1}_{i + self.probe_length}"
             probes.append(SeqRecord(Seq(probe_seq), id=probe_id, description=""))
-
         return probes
 
-    def generate_all(self) -> None:
-        """Generate unique probes for all exons and write to output FASTA."""
-        unique_probes: List[SeqRecord] = []
-        seen_seqs: Set[str] = set()
+    def generate_all(self):
+        print(f"[🔍] Чтение FASTA: {self.input_fasta}")
+        total_input = 0
+        total_output = 0
+        unique_sequences: Set[str] = set()
+        all_probes: List[SeqRecord] = []
 
         for record in SeqIO.parse(self.input_fasta, "fasta"):
+            total_input += 1
             exon_id = record.id
-            exon_seq = str(record.seq).upper()
-            exon_probes = self.make_probes(exon_seq, exon_id)
+            sequence = str(record.seq).upper()
 
-            for probe in exon_probes:
-                seq_str = str(probe.seq)
-                if seq_str not in seen_seqs:
-                    seen_seqs.add(seq_str)
-                    unique_probes.append(probe)
+            if len(sequence) < self.probe_length:
+                continue
 
-        SeqIO.write(unique_probes, self.output_fasta, "fasta")
-        print(f"[✓] {len(unique_probes)} unique probes written to {self.output_fasta}")
+            probes = self.make_probes(sequence, exon_id)
+            for probe in probes:
+                probe_seq_str = str(probe.seq)
+                if probe_seq_str not in unique_sequences:
+                    unique_sequences.add(probe_seq_str)
+                    all_probes.append(probe)
+                    total_output += 1
+
+        if total_output == 0:
+            print("[⚠] Ни одного уникального зонда не сгенерировано.")
+        else:
+            SeqIO.write(all_probes, self.output_fasta, "fasta")
+            print(f"[✅] Сгенерировано {total_output} уникальных зондов.")
+            print(f"[💾] Записано в файл: {self.output_fasta}")
+
+        # Проверка существования выходного файла
+        if not self.output_fasta.exists():
+            print("[❌] Ошибка: файл зондов не создан.")
+        else:
+            print(f"[📄] Файл создан: {self.output_fasta.resolve()}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate overlapping unique probes from exon sequences.")
-    parser.add_argument("input_fasta", help="Input FASTA file with exon sequences")
-    parser.add_argument("output_fasta", help="Output FASTA file to save unique probes")
-    parser.add_argument("--probe-length", type=int, default=120, help="Length of each probe (default: 120)")
-    parser.add_argument("--step", type=int, default=1, help="Step size between probes (default: 1 for 99% overlap)")
+    parser = argparse.ArgumentParser(description="Генерация уникальных зондов из FASTA-файла")
+    parser.add_argument("input_fasta", help="Входной FASTA-файл с экзонами")
+    parser.add_argument("output_fasta", help="Выходной FASTA-файл для зондов")
+    parser.add_argument("--probe-length", type=int, default=120, help="Длина зонда (по умолчанию: 120)")
+    parser.add_argument("--step", type=int, default=1, help="Шаг между зондами (по умолчанию: 1)")
 
     args = parser.parse_args()
 
-    pg = ProbeGenerator(
+    generator = ProbeGenerator(
         input_fasta=args.input_fasta,
         output_fasta=args.output_fasta,
         probe_length=args.probe_length,
         step=args.step
     )
-    pg.generate_all()
+    generator.generate_all()
 
 
 if __name__ == "__main__":
     main()
+
 
 
 
