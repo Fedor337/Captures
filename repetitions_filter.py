@@ -36,7 +36,6 @@ def parse_args():
     parser.add_argument("output_fasta", help="Выходной FASTA-файл")
     parser.add_argument("--probe-length", type=int, default=120, help="Длина зонда (по умолчанию 120)")
     parser.add_argument("--max-homopolymer", type=int, default=5, help="Макс. длина гомополимера")
-    parser.add_argument("--max-repeats", type=int, default=3, help="Мин. число тандемных повторов")
     parser.add_argument("--min-entropy", type=float, default=1.8, help="Мин. энтропия Шеннона")
     parser.add_argument("--tandem-min-repeats", type=int, default=3, help="Мин число повторов для тандемов")
     parser.add_argument("--tandem-max-motif", type=int, default=5, help="Макс длина мотива для тандемов")
@@ -46,7 +45,6 @@ def parse_args():
     parser.add_argument("--filter-tandem", action="store_true", help="Фильтрация по тандемным повторам")
     parser.add_argument("--filter-palindromes", action="store_true", help="Фильтрация по палиндромам")
     parser.add_argument("--filter-entropy", action="store_true", help="Фильтрация по энтропии")
-
 
     return parser.parse_args()
 
