@@ -142,8 +142,10 @@ bedtools getfasta -fi hs37d5_chr.fa -bed brca_exons.bed -fo brca_exons.fa -name
 
 # Генерация зондов по экзонам (по умолчанию 120 нк с шагом = 1)
 python3 probe_generator.py brca_exons.fa brca_probes.fa --probe-length 120 --step 1
+# Удаляем дубликаты зондов по последовательностям
+python3 dedublicator.py brca_probes.fa brca_probes_unique.fa
 # Фильтрация по температуре (по умолчанию 65–72°C)
-python3 tm_filter.py brca_probes.fa probes_tm_filtered.fa --tm_min 65 --tm_max 72
+python3 tm_filter.py brca_probes_unique.fa probes_tm_filtered.fa --tm_min 65 --tm_max 72
 # Фильтрация по GC (по умолчанию 40–60%)
 python3 gc_filter.py probes_tm_filtered.fa probes_tm_gc_filtered.fa --gc_min 30 --gc_max 40
 # Удаление зондов с повторами (гомополимерные, тандемные, низкосложные, паллиндромы)
@@ -159,8 +161,5 @@ samtools index probes_aligned_sorted.bam
 
 # Вывод специфических качественных ридов в отдельный фаста файл и их количества в терминал
 samtools view -q 20 -F 4 probes_aligned_sorted.bam | awk '{print ">"$1"\n"$10}' | tee high_quality_probes.fa | grep "^>" | wc -l
-
-# На любом этапе можно очистить последовательности от дубликатов
-python3 dedublicator.py high_quality_probes.fa
 
 ```
