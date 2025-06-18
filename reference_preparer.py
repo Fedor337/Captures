@@ -206,7 +206,7 @@ class ReferencePreparer:
             print(f"[!] Ошибка bedtools getfasta: {e}")
             raise
 
-        # Уникализируем последовательности
+        # Удаляем дублирующиеся последовательности
         try:
             seen = set()
             unique = []
