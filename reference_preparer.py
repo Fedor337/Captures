@@ -1,7 +1,6 @@
 import os
 import urllib.request
 import gzip
-import shutil
 import subprocess
 import pandas as pd
 import requests
@@ -71,7 +70,6 @@ class ReferencePreparer:
                             downloaded += len(chunk)
                             ReferencePreparer.print_download_bar(downloaded, total, destination_path.name)
                 print()
-
             elif scheme == "ftp":
                 print(f"[↓] Скачиваем FTP: {url}")
                 with urllib.request.urlopen(url) as response:
@@ -89,7 +87,6 @@ class ReferencePreparer:
                 print()
             else:
                 raise ValueError(f"Unsupported URL scheme: {scheme}")
-
             print(f"[✓] Скачано: {destination_path}")
         except Exception as e:
             print(f"[!] Ошибка скачивания: {e}")
@@ -101,7 +98,7 @@ class ReferencePreparer:
             print(f"[✓] Уже распакован: {output_path}")
             return
         try:
-            print(f"[⇨] Распаковка: {input_path.name}")
+            print(f"[↪] Распаковка: {input_path.name}")
             total = os.path.getsize(input_path)
             processed = 0
             with gzip.open(input_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
@@ -135,9 +132,24 @@ class ReferencePreparer:
             print(f"[✓] Геном уже распакован: {self.genome}")
         self.update_progress("Геном загружен и распакован")
 
+        # Убедимся, что hs37d5_chr.fa с префиксами chr создан
+        if not self.genome_chr.exists():
+            try:
+                print("[↪] Добавляем префикс 'chr' к заголовкам FASTA...")
+                with open(self.genome, 'r') as f_in, open(self.genome_chr, 'w') as f_out:
+                    for line in f_in:
+                        if line.startswith('>') and not line.startswith('>chr'):
+                            f_out.write('>chr' + line[1:])
+                        else:
+                            f_out.write(line)
+                print(f"[✓] Создан файл: {self.genome_chr}")
+            except Exception as e:
+                print(f"[!] Ошибка преобразования chr: {e}")
+                raise
+
     def get_fasta_chrom_format(self) -> str:
         try:
-            with open(self.genome, 'r') as f:
+            with open(self.genome_chr if self.genome_chr.exists() else self.genome, 'r') as f:
                 for line in f:
                     if line.startswith('>'):
                         return 'chr' if line[1:].startswith('chr') else ''
@@ -146,16 +158,15 @@ class ReferencePreparer:
         return ''
 
     def index_with_bwa(self, force=False) -> None:
-        index_suffixes = [".amb", ".ann", ".bwt", ".pac", ".sa"]
-        index_files = [self.genome.with_name(self.genome.stem + suffix) for suffix in index_suffixes]
+        index_base = self.genome_chr if self.genome_chr.exists() else self.genome
+        index_files = [index_base.with_suffix(ext) for ext in ['.amb', '.ann', '.bwt', '.pac', '.sa']]
         if all(f.exists() for f in index_files) and not force:
-            print(f"[✓] Индекс BWA уже существует.")
+            print(f"[✓] Индексы BWA уже существуют для {index_base}")
             self.update_progress("BWA индекс уже существует")
             return
-
-        print(f"[🔧] Строим индекс BWA для {self.genome}...")
+        print(f"[🔧] Строим индекс BWA для {index_base}...")
         try:
-            subprocess.run(["bwa", "index", str(self.genome)], check=True)
+            subprocess.run(["bwa", "index", str(index_base)], check=True)
             print(f"[✓] BWA индекс готов.")
             self.update_progress("BWA индекс построен")
         except Exception as e:
@@ -164,42 +175,24 @@ class ReferencePreparer:
 
     def extract_brca_exons(self) -> None:
         print(f"[📍] Извлекаем координаты экзонов BRCA1/2...")
-        chrom_prefix = self.get_fasta_chrom_format()
+        chrom_prefix = 'chr'
 
         df = pd.read_csv(self.gtf, sep='\t', comment='#', header=None)
         df.columns = ["chr", "source", "feature", "start", "end", "score", "strand", "frame", "info"]
-        exons = df[(df["feature"] == "exon") & (df["info"].str.contains('gene_name \"BRCA1\"|gene_name \"BRCA2\"'))].copy()
-        exons["gene"] = exons["info"].str.extract(r'gene_name \"([^\"]+)\"')
+        exons = df[(df["feature"] == "exon") & df["info"].str.contains('gene_name "BRCA1"|gene_name "BRCA2"')].copy()
+        exons["gene"] = exons["info"].str.extract(r'gene_name "([^"]+)"')
 
-        if chrom_prefix == 'chr':
-            exons["chr"] = exons["chr"].astype(str).apply(lambda c: f'chr{c}' if not c.startswith('chr') else c)
-        else:
-            exons["chr"] = exons["chr"].astype(str).apply(lambda c: c.replace('chr', ''))
+        exons["chr"] = exons["chr"].astype(str).apply(lambda c: f'chr{c}' if not c.startswith('chr') else c)
 
         bed_df = exons[["chr", "start", "end", "gene"]].copy()
         bed_df["start"] = bed_df["start"].astype(int) - 1
-        bed_df = bed_df.sort_values(by=["chr", "start"])
+        bed_df = bed_df.sort_values(["chr","start"])
         bed_df.to_csv(self.bed, sep='\t', header=False, index=False)
         print(f"[✓] Сохранено в BED: {self.bed}")
         self.update_progress("Экзоны BRCA извлечены")
 
     def extract_sequences_bedtools(self) -> None:
         print(f"[🧬] Извлекаем последовательности экзонов через bedtools...")
-
-        if not self.genome_chr.exists():
-            try:
-                print("[⇨] Добавляем префикс 'chr' к заголовкам FASTA...")
-                with open(self.genome, 'r') as fin, open(self.genome_chr, 'w') as fout:
-                    for line in fin:
-                        if line.startswith('>'):
-                            fout.write('>' + 'chr' + line[1:])
-                        else:
-                            fout.write(line)
-                print(f"[✓] Создан файл: {self.genome_chr}")
-            except Exception as e:
-                print(f"[!] Ошибка преобразования chr: {e}")
-                raise
-
         try:
             subprocess.run([
                 "bedtools", "getfasta",
@@ -213,31 +206,29 @@ class ReferencePreparer:
             print(f"[!] Ошибка bedtools getfasta: {e}")
             raise
 
+        # Уникализируем последовательности
         try:
             seen = set()
-            unique_records = []
-            with open(self.exons_fa, 'r') as f:
+            unique = []
+            with open(self.exons_fa) as f:
                 name, seq = None, []
                 for line in f:
                     if line.startswith('>'):
-                        if name and (s := ''.join(seq)) not in seen:
-                            seen.add(s)
-                            unique_records.append((name, s))
+                        if name and ''.join(seq) not in seen:
+                            seen.add(''.join(seq)); unique.append((name,''.join(seq)))
                         name = line.strip()
-                        seq = []
+                        seq=[]
                     else:
                         seq.append(line.strip())
-                if name and (s := ''.join(seq)) not in seen:
-                    seen.add(s)
-                    unique_records.append((name, s))
-
-            with open(self.exons_fa, 'w') as f:
-                for name, seq in unique_records:
-                    f.write(f"{name}\n{seq}\n")
-            print(f"[✓] Удалены дубликаты. Осталось экзонов: {len(unique_records)}")
-            self.update_progress(f"Уникальные экзоны ({len(unique_records)}) сохранены")
+                if name and ''.join(seq) not in seen:
+                    unique.append((name,''.join(seq)))
+            with open(self.exons_fa,'w') as f:
+                for nm,sq in unique:
+                    f.write(f"{nm}\n{sq}\n")
+            print(f"[✓] Уникальные экзоны: {len(unique)}")
+            self.update_progress(f"Уникальные экзоны ({len(unique)}) сохранены")
         except Exception as e:
-            print(f"[!] Ошибка фильтрации дубликатов: {e}")
+            print(f"[!] Ошибка уникализации: {e}")
             raise
 
     def prepare_all(self, force_download=False, force_preparing=False) -> None:
