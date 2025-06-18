@@ -54,13 +54,13 @@ class ReferencePreparer:
     @staticmethod
     def download_file(url: str, destination_path: Path, chunk_size: int = 8192) -> None:
         if destination_path.exists():
-            print(f"[\u2713] Уже существует: {destination_path}")
+            print(f"[✓] Уже существует: {destination_path}")
             return
 
         scheme = url.split("://")[0]
         try:
             if scheme in ("http", "https"):
-                print(f"[\u2193] Скачиваем: {url}")
+                print(f"[↓] Скачиваем: {url}")
                 with requests.get(url, stream=True) as r:
                     r.raise_for_status()
                     total = int(r.headers.get('Content-Length', 0))
@@ -73,7 +73,7 @@ class ReferencePreparer:
                 print()
 
             elif scheme == "ftp":
-                print(f"[\u2193] Скачиваем FTP: {url}")
+                print(f"[↓] Скачиваем FTP: {url}")
                 with urllib.request.urlopen(url) as response:
                     meta = response.info()
                     total = int(meta.get("Content-Length", 0))
@@ -90,7 +90,7 @@ class ReferencePreparer:
             else:
                 raise ValueError(f"Unsupported URL scheme: {scheme}")
 
-            print(f"[\u2713] Скачано: {destination_path}")
+            print(f"[✓] Скачано: {destination_path}")
         except Exception as e:
             print(f"[!] Ошибка скачивания: {e}")
             raise
@@ -98,10 +98,10 @@ class ReferencePreparer:
     @staticmethod
     def gunzip_file(input_path: Path, output_path: Path) -> None:
         if output_path.exists():
-            print(f"[\u2713] Уже распакован: {output_path}")
+            print(f"[✓] Уже распакован: {output_path}")
             return
         try:
-            print(f"[\u21AA] Распаковка: {input_path.name}")
+            print(f"[⇨] Распаковка: {input_path.name}")
             total = os.path.getsize(input_path)
             processed = 0
             with gzip.open(input_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
@@ -113,7 +113,7 @@ class ReferencePreparer:
                     processed += len(chunk)
                     ReferencePreparer.print_download_bar(processed, total, output_path.name)
             print()
-            print(f"[\u2713] Распаковано: {output_path}")
+            print(f"[✓] Распаковано: {output_path}")
         except Exception as e:
             print(f"[!] Ошибка распаковки: {e}")
             raise
@@ -124,7 +124,7 @@ class ReferencePreparer:
                 self.download_file(self.gtf_url, self.gtf_gz)
             self.gunzip_file(self.gtf_gz, self.gtf)
         else:
-            print(f"[\u2713] GTF уже распакован: {self.gtf}")
+            print(f"[✓] GTF уже распакован: {self.gtf}")
         self.update_progress("GTF загружен и распакован")
 
         if not self.genome.exists() or force_download:
@@ -132,7 +132,7 @@ class ReferencePreparer:
                 self.download_file(self.genome_url, self.genome_gz)
             self.gunzip_file(self.genome_gz, self.genome)
         else:
-            print(f"[\u2713] Геном уже распакован: {self.genome}")
+            print(f"[✓] Геном уже распакован: {self.genome}")
         self.update_progress("Геном загружен и распакован")
 
     def get_fasta_chrom_format(self) -> str:
@@ -146,22 +146,24 @@ class ReferencePreparer:
         return ''
 
     def index_with_bwa(self, force=False) -> None:
-        index_files = [self.genome.with_suffix(suffix) for suffix in ['.amb', '.ann', '.bwt', '.pac', '.sa']]
+        index_suffixes = [".amb", ".ann", ".bwt", ".pac", ".sa"]
+        index_files = [self.genome.with_name(self.genome.stem + suffix) for suffix in index_suffixes]
         if all(f.exists() for f in index_files) and not force:
-            print(f"[\u2713] Индекс BWA уже существует.")
+            print(f"[✓] Индекс BWA уже существует.")
             self.update_progress("BWA индекс уже существует")
             return
-        print(f"[\U0001F527] Строим индекс BWA...")
+
+        print(f"[🔧] Строим индекс BWA для {self.genome}...")
         try:
             subprocess.run(["bwa", "index", str(self.genome)], check=True)
-            print(f"[\u2713] BWA индекс готов.")
+            print(f"[✓] BWA индекс готов.")
             self.update_progress("BWA индекс построен")
         except Exception as e:
             print(f"[!] Ошибка индексации BWA: {e}")
             raise
 
     def extract_brca_exons(self) -> None:
-        print(f"[\U0001F4CD] Извлекаем координаты экзонов BRCA1/2...")
+        print(f"[📍] Извлекаем координаты экзонов BRCA1/2...")
         chrom_prefix = self.get_fasta_chrom_format()
 
         df = pd.read_csv(self.gtf, sep='\t', comment='#', header=None)
@@ -169,8 +171,8 @@ class ReferencePreparer:
         exons = df[(df["feature"] == "exon") & (df["info"].str.contains('gene_name \"BRCA1\"|gene_name \"BRCA2\"'))].copy()
         exons["gene"] = exons["info"].str.extract(r'gene_name \"([^\"]+)\"')
 
-        if chrom_prefix:
-            exons["chr"] = exons["chr"].astype(str).apply(lambda c: c if c.startswith('chr') else f'chr{c}')
+        if chrom_prefix == 'chr':
+            exons["chr"] = exons["chr"].astype(str).apply(lambda c: f'chr{c}' if not c.startswith('chr') else c)
         else:
             exons["chr"] = exons["chr"].astype(str).apply(lambda c: c.replace('chr', ''))
 
@@ -178,17 +180,22 @@ class ReferencePreparer:
         bed_df["start"] = bed_df["start"].astype(int) - 1
         bed_df = bed_df.sort_values(by=["chr", "start"])
         bed_df.to_csv(self.bed, sep='\t', header=False, index=False)
-        print(f"[\u2713] Сохранено в BED: {self.bed}")
+        print(f"[✓] Сохранено в BED: {self.bed}")
         self.update_progress("Экзоны BRCA извлечены")
 
     def extract_sequences_bedtools(self) -> None:
-        print(f"[\U0001F9EC] Извлекаем последовательности экзонов через bedtools...")
+        print(f"[🧬] Извлекаем последовательности экзонов через bedtools...")
 
         if not self.genome_chr.exists():
             try:
-                print("[\u21AA] Добавляем префикс 'chr' к заголовкам FASTA...")
-                subprocess.run(["sed", "s/^>/\>chr/", str(self.genome)], stdout=open(self.genome_chr, 'w'), check=True)
-                print(f"[\u2713] Создан файл: {self.genome_chr}")
+                print("[⇨] Добавляем префикс 'chr' к заголовкам FASTA...")
+                with open(self.genome, 'r') as fin, open(self.genome_chr, 'w') as fout:
+                    for line in fin:
+                        if line.startswith('>'):
+                            fout.write('>' + 'chr' + line[1:])
+                        else:
+                            fout.write(line)
+                print(f"[✓] Создан файл: {self.genome_chr}")
             except Exception as e:
                 print(f"[!] Ошибка преобразования chr: {e}")
                 raise
@@ -201,7 +208,7 @@ class ReferencePreparer:
                 "-fo", str(self.exons_fa),
                 "-name"
             ], check=True)
-            print(f"[\u2713] Секвенции сохранены в: {self.exons_fa}")
+            print(f"[✓] Секвенции сохранены в: {self.exons_fa}")
         except Exception as e:
             print(f"[!] Ошибка bedtools getfasta: {e}")
             raise
@@ -227,7 +234,7 @@ class ReferencePreparer:
             with open(self.exons_fa, 'w') as f:
                 for name, seq in unique_records:
                     f.write(f"{name}\n{seq}\n")
-            print(f"[\u2713] Удалены дубликаты. Осталось экзонов: {len(unique_records)}")
+            print(f"[✓] Удалены дубликаты. Осталось экзонов: {len(unique_records)}")
             self.update_progress(f"Уникальные экзоны ({len(unique_records)}) сохранены")
         except Exception as e:
             print(f"[!] Ошибка фильтрации дубликатов: {e}")
@@ -238,5 +245,6 @@ class ReferencePreparer:
         self.index_with_bwa(force=force_preparing)
         self.extract_brca_exons()
         self.extract_sequences_bedtools()
-        print("[\u2705] Все этапы подготовки завершены")
+        print("[✅] Все этапы подготовки завершены")
+
 
