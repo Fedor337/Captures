@@ -30,5 +30,5 @@ def main():
                 filtered_probes.append(record)
 
     SeqIO.write(filtered_probes, args.output_fasta, "fasta")
-    print(f"[✓] {len(filtered_probes)} зондов записано в {args.output_fasta} (Tm от {args.tm_min} до {args.tm_max} °C)")
+    print(f"{len(filtered_probes)} зондов записано в {args.output_fasta} (Tm от {args.tm_min} до {args.tm_max} °C)")
 
