@@ -51,14 +51,14 @@ class ProbeGenerator:
             print("[⚠] Ни одного уникального зонда не сгенерировано.")
         else:
             SeqIO.write(all_probes, self.output_fasta, "fasta")
-            print(f"[✅] Сгенерировано {total_output} уникальных зондов.")
-            print(f"[💾] Записано в файл: {self.output_fasta}")
+            print(f"Сгенерировано {total_output} уникальных зондов.")
+            print(f"Записано в файл: {self.output_fasta}")
 
         # Проверка существования выходного файла
         if not self.output_fasta.exists():
-            print("[❌] Ошибка: файл зондов не создан.")
+            print("Ошибка: файл зондов не создан.")
         else:
-            print(f"[📄] Файл создан: {self.output_fasta.resolve()}")
+            print(f"Файл создан: {self.output_fasta.resolve()}")
 
 
 def main():
