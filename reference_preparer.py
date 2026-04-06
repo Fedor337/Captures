@@ -53,7 +53,7 @@ class ReferencePreparer:
     @staticmethod
     def download_file(url: str, destination_path: Path, chunk_size: int = 8192) -> None:
         if destination_path.exists():
-            print(f"[✓] Уже существует: {destination_path}")
+            print(f"Уже существует: {destination_path}")
             return
 
         scheme = url.split("://")[0]
@@ -87,18 +87,18 @@ class ReferencePreparer:
                 print()
             else:
                 raise ValueError(f"Unsupported URL scheme: {scheme}")
-            print(f"[✓] Скачано: {destination_path}")
+            print(f"Скачано: {destination_path}")
         except Exception as e:
-            print(f"[!] Ошибка скачивания: {e}")
+            print(f"Ошибка скачивания: {e}")
             raise
 
     @staticmethod
     def gunzip_file(input_path: Path, output_path: Path) -> None:
         if output_path.exists():
-            print(f"[✓] Уже распакован: {output_path}")
+            print(f"Уже распакован: {output_path}")
             return
         try:
-            print(f"[↪] Распаковка: {input_path.name}")
+            print(f"Распаковка: {input_path.name}")
             total = os.path.getsize(input_path)
             processed = 0
             with gzip.open(input_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
@@ -110,9 +110,9 @@ class ReferencePreparer:
                     processed += len(chunk)
                     ReferencePreparer.print_download_bar(processed, total, output_path.name)
             print()
-            print(f"[✓] Распаковано: {output_path}")
+            print(f"Распаковано: {output_path}")
         except Exception as e:
-            print(f"[!] Ошибка распаковки: {e}")
+            print(f"Ошибка распаковки: {e}")
             raise
 
     def download_and_extract(self, force_download=False) -> None:
@@ -121,7 +121,7 @@ class ReferencePreparer:
                 self.download_file(self.gtf_url, self.gtf_gz)
             self.gunzip_file(self.gtf_gz, self.gtf)
         else:
-            print(f"[✓] GTF уже распакован: {self.gtf}")
+            print(f"GTF уже распакован: {self.gtf}")
         self.update_progress("GTF загружен и распакован")
 
         if not self.genome.exists() or force_download:
@@ -129,13 +129,13 @@ class ReferencePreparer:
                 self.download_file(self.genome_url, self.genome_gz)
             self.gunzip_file(self.genome_gz, self.genome)
         else:
-            print(f"[✓] Геном уже распакован: {self.genome}")
+            print(f"Геном уже распакован: {self.genome}")
         self.update_progress("Геном загружен и распакован")
 
         # Убедимся, что hs37d5_chr.fa с префиксами chr создан
         if not self.genome_chr.exists():
             try:
-                print("[↪] Добавляем префикс 'chr' к заголовкам FASTA...")
+                print("Добавляем префикс 'chr' к заголовкам FASTA...")
                 with open(self.genome, 'r') as f_in, open(self.genome_chr, 'w') as f_out:
                     for line in f_in:
                         if line.startswith('>') and not line.startswith('>chr'):
@@ -154,27 +154,27 @@ class ReferencePreparer:
                     if line.startswith('>'):
                         return 'chr' if line[1:].startswith('chr') else ''
         except Exception as e:
-            print(f"[!] Ошибка при определении формата хромосом: {e}")
+            print(f"Ошибка при определении формата хромосом: {e}")
         return ''
 
     def index_with_bwa(self, force=False) -> None:
         index_base = self.genome_chr if self.genome_chr.exists() else self.genome
         index_files = [index_base.with_suffix(ext) for ext in ['.amb', '.ann', '.bwt', '.pac', '.sa']]
         if all(f.exists() for f in index_files) and not force:
-            print(f"[✓] Индексы BWA уже существуют для {index_base}")
+            print(f"Индексы BWA уже существуют для {index_base}")
             self.update_progress("BWA индекс уже существует")
             return
-        print(f"[🔧] Строим индекс BWA для {index_base}...")
+        print(f"Строим индекс BWA для {index_base}...")
         try:
             subprocess.run(["bwa", "index", str(index_base)], check=True)
-            print(f"[✓] BWA индекс готов.")
+            print(f"BWA индекс готов.")
             self.update_progress("BWA индекс построен")
         except Exception as e:
-            print(f"[!] Ошибка индексации BWA: {e}")
+            print(f"Ошибка индексации BWA: {e}")
             raise
 
     def extract_brca_exons(self) -> None:
-        print(f"[📍] Извлекаем координаты экзонов BRCA1/2...")
+        print(f"Извлекаем координаты экзонов BRCA1/2...")
         chrom_prefix = 'chr'
 
         df = pd.read_csv(self.gtf, sep='\t', comment='#', header=None)
@@ -188,11 +188,11 @@ class ReferencePreparer:
         bed_df["start"] = bed_df["start"].astype(int) - 1
         bed_df = bed_df.sort_values(["chr","start"])
         bed_df.to_csv(self.bed, sep='\t', header=False, index=False)
-        print(f"[✓] Сохранено в BED: {self.bed}")
+        print(f"Сохранено в BED: {self.bed}")
         self.update_progress("Экзоны BRCA извлечены")
 
     def extract_sequences_bedtools(self) -> None:
-        print(f"[🧬] Извлекаем последовательности экзонов через bedtools...")
+        print(f"Извлекаем последовательности экзонов через bedtools...")
         try:
             subprocess.run([
                 "bedtools", "getfasta",
@@ -201,9 +201,9 @@ class ReferencePreparer:
                 "-fo", str(self.exons_fa),
                 "-name"
             ], check=True)
-            print(f"[✓] Секвенции сохранены в: {self.exons_fa}")
+            print(f"Секвенции сохранены в: {self.exons_fa}")
         except Exception as e:
-            print(f"[!] Ошибка bedtools getfasta: {e}")
+            print(f"Ошибка bedtools getfasta: {e}")
             raise
 
         # Удаляем дублирующиеся последовательности
@@ -225,10 +225,10 @@ class ReferencePreparer:
             with open(self.exons_fa,'w') as f:
                 for nm,sq in unique:
                     f.write(f"{nm}\n{sq}\n")
-            print(f"[✓] Уникальные экзоны: {len(unique)}")
+            print(f"Уникальные экзоны: {len(unique)}")
             self.update_progress(f"Уникальные экзоны ({len(unique)}) сохранены")
         except Exception as e:
-            print(f"[!] Ошибка уникализации: {e}")
+            print(f"Ошибка уникализации: {e}")
             raise
 
     def prepare_all(self, force_download=False, force_preparing=False) -> None:
